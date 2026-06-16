@@ -12,6 +12,8 @@
 
 基于 Go 语言的高性能中国古诗词 API 服务，支持 REST 和 GraphQL 接口，提供简体/繁体中文、爬虫练习场等功能。
 
+在线版：https://poetry.palemoky.com
+
 </div>
 
 ## ✨ 特性
