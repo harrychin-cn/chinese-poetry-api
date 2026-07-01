@@ -367,9 +367,9 @@ if ($health.Json.status -ne "healthy") {
 }
 
 $docsPage = Invoke-SmokeTextRequest -Method GET -Path "/docs" -Step "docs page" -Contains @(
-    "/console",
-    "/pricing",
-    "/openapi.yaml",
+    'href="console"',
+    'href="pricing"',
+    'href="openapi.yaml"',
     "POST /api/v1/keys",
     "GET /api/v1/knowledge/recall"
 )
