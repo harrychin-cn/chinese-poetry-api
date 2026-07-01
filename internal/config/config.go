@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -14,6 +15,9 @@ type Config struct {
 	Server    ServerConfig    `mapstructure:"server"`
 	Database  DatabaseConfig  `mapstructure:"database"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	Abuse     AbuseConfig     `mapstructure:"abuse_protection"`
+	APIAuth   APIAuthConfig   `mapstructure:"api_auth"`
+	Qanlo     QanloConfig     `mapstructure:"qanlo"`
 	GraphQL   GraphQLConfig   `mapstructure:"graphql"`
 	Search    SearchConfig    `mapstructure:"search"`
 }
@@ -39,9 +43,39 @@ type DownloadConfig struct {
 
 // RateLimitConfig holds rate limiting configuration
 type RateLimitConfig struct {
-	Enabled           bool    `mapstructure:"enabled"`
-	RequestsPerSecond float64 `mapstructure:"requests_per_second"`
-	Burst             int     `mapstructure:"burst"`
+	Enabled                 bool    `mapstructure:"enabled"`
+	RequestsPerSecond       float64 `mapstructure:"requests_per_second"`
+	Burst                   int     `mapstructure:"burst"`
+	APIKeyRequestsPerSecond float64 `mapstructure:"api_key_requests_per_second"`
+	APIKeyBurst             int     `mapstructure:"api_key_burst"`
+}
+
+// AbuseConfig holds blocklist and auto-block settings.
+type AbuseConfig struct {
+	Enabled          bool `mapstructure:"enabled"`
+	AutoBlockEnabled bool `mapstructure:"auto_block_enabled"`
+	FailureThreshold int  `mapstructure:"failure_threshold"`
+	WindowSeconds    int  `mapstructure:"window_seconds"`
+	BlockMinutes     int  `mapstructure:"block_minutes"`
+}
+
+// APIAuthConfig holds API key authentication settings for commercial endpoints.
+type APIAuthConfig struct {
+	Enabled           bool   `mapstructure:"enabled"`
+	AdminToken        string `mapstructure:"admin_token"`
+	DefaultDailyLimit int    `mapstructure:"default_daily_limit"`
+}
+
+// QanloConfig holds Qanlo Agent Key and compact recharge settings.
+type QanloConfig struct {
+	AgentBaseURL   string `mapstructure:"agent_base_url"`
+	OpenAIBaseURL  string `mapstructure:"openai_base_url"`
+	RechargeURL    string `mapstructure:"recharge_url"`
+	AgentAppID     string `mapstructure:"agent_app_id"`
+	AgentName      string `mapstructure:"agent_name"`
+	AgentModel     string `mapstructure:"agent_model"`
+	ReturnURL      string `mapstructure:"return_url"`
+	CallbackSecret string `mapstructure:"callback_secret"`
 }
 
 // GraphQLConfig holds GraphQL configuration
@@ -97,7 +131,25 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("rate_limit.enabled", true)
 	v.SetDefault("rate_limit.requests_per_second", 10.0)
 	v.SetDefault("rate_limit.burst", 20)
+	v.SetDefault("rate_limit.api_key_requests_per_second", 2.0)
+	v.SetDefault("rate_limit.api_key_burst", 5)
 	v.SetDefault("rate_limit.by_ip", true)
+	v.SetDefault("abuse_protection.enabled", true)
+	v.SetDefault("abuse_protection.auto_block_enabled", true)
+	v.SetDefault("abuse_protection.failure_threshold", 20)
+	v.SetDefault("abuse_protection.window_seconds", 60)
+	v.SetDefault("abuse_protection.block_minutes", 60)
+	v.SetDefault("api_auth.enabled", false)
+	v.SetDefault("api_auth.admin_token", "")
+	v.SetDefault("api_auth.default_daily_limit", 1000)
+	v.SetDefault("qanlo.agent_base_url", "https://qanlo.com")
+	v.SetDefault("qanlo.openai_base_url", "https://qanlo.com/v1")
+	v.SetDefault("qanlo.recharge_url", "https://qanlo.com/purchase?compact=1&from=agent_key&tab=recharge&ui_mode=embedded")
+	v.SetDefault("qanlo.agent_app_id", "")
+	v.SetDefault("qanlo.agent_name", "chinese-poetry-api")
+	v.SetDefault("qanlo.agent_model", "deepseek-v4-flash")
+	v.SetDefault("qanlo.return_url", "http://localhost:1279/api/v1/billing/qanlo/callback")
+	v.SetDefault("qanlo.callback_secret", "")
 	v.SetDefault("graphql.playground", false)
 	v.SetDefault("graphql.introspection", true)
 	v.SetDefault("graphql.complexity_limit", 1000)
@@ -141,6 +193,80 @@ func bindEnvVars(v *viper.Viper) {
 			v.Set("rate_limit.burst", b)
 		}
 	}
+	if rps := os.Getenv("API_KEY_RATE_LIMIT_RPS"); rps != "" {
+		if r, err := strconv.ParseFloat(rps, 64); err == nil {
+			v.Set("rate_limit.api_key_requests_per_second", r)
+		}
+	}
+	if burst := os.Getenv("API_KEY_RATE_LIMIT_BURST"); burst != "" {
+		if b, err := strconv.Atoi(burst); err == nil {
+			v.Set("rate_limit.api_key_burst", b)
+		}
+	}
+
+	// Abuse protection
+	if enabled := os.Getenv("ABUSE_PROTECTION_ENABLED"); enabled != "" {
+		v.Set("abuse_protection.enabled", enabled == "true")
+	}
+	if enabled := os.Getenv("ABUSE_AUTO_BLOCK_ENABLED"); enabled != "" {
+		v.Set("abuse_protection.auto_block_enabled", enabled == "true")
+	}
+	if threshold := os.Getenv("ABUSE_FAILURE_THRESHOLD"); threshold != "" {
+		if value, err := strconv.Atoi(threshold); err == nil {
+			v.Set("abuse_protection.failure_threshold", value)
+		}
+	}
+	if seconds := os.Getenv("ABUSE_WINDOW_SECONDS"); seconds != "" {
+		if value, err := strconv.Atoi(seconds); err == nil {
+			v.Set("abuse_protection.window_seconds", value)
+		}
+	}
+	if minutes := os.Getenv("ABUSE_BLOCK_MINUTES"); minutes != "" {
+		if value, err := strconv.Atoi(minutes); err == nil {
+			v.Set("abuse_protection.block_minutes", value)
+		}
+	}
+
+	// API key auth for commercial endpoints
+	if enabled := os.Getenv("API_AUTH_ENABLED"); enabled != "" {
+		v.Set("api_auth.enabled", enabled == "true")
+	}
+	if token := os.Getenv("API_ADMIN_TOKEN"); token != "" {
+		v.Set("api_auth.admin_token", token)
+	}
+	if dailyLimit := os.Getenv("API_DEFAULT_DAILY_LIMIT"); dailyLimit != "" {
+		if limit, err := strconv.Atoi(dailyLimit); err == nil {
+			v.Set("api_auth.default_daily_limit", limit)
+		}
+	}
+
+	// Qanlo Agent Key / compact recharge settings
+	if baseURL := os.Getenv("QANLO_AGENT_BASE_URL"); baseURL != "" {
+		v.Set("qanlo.agent_base_url", baseURL)
+	}
+	if baseURL := os.Getenv("QANLO_OPENAI_BASE_URL"); baseURL != "" {
+		v.Set("qanlo.openai_base_url", baseURL)
+	}
+	if rechargeURL := os.Getenv("QANLO_RECHARGE_URL"); rechargeURL != "" {
+		v.Set("qanlo.recharge_url", rechargeURL)
+	}
+	if appID := os.Getenv("QANLO_AGENT_APP_ID"); appID != "" {
+		v.Set("qanlo.agent_app_id", appID)
+	}
+	if name := os.Getenv("QANLO_AGENT_NAME"); name != "" {
+		v.Set("qanlo.agent_name", name)
+	}
+	if model := os.Getenv("QANLO_AGENT_MODEL"); model != "" {
+		v.Set("qanlo.agent_model", model)
+	}
+	if returnURL := os.Getenv("QANLO_RETURN_URL"); returnURL != "" {
+		v.Set("qanlo.return_url", returnURL)
+	} else if returnURL := os.Getenv("QANLO_AGENT_RETURN_URL"); returnURL != "" {
+		v.Set("qanlo.return_url", returnURL)
+	}
+	if secret := os.Getenv("QANLO_CALLBACK_SECRET"); secret != "" {
+		v.Set("qanlo.callback_secret", secret)
+	}
 
 	// Database connection pool
 	if maxOpen := os.Getenv("DB_MAX_OPEN_CONNS"); maxOpen != "" {
@@ -175,6 +301,46 @@ func (c *Config) Validate() error {
 
 	if c.RateLimit.Burst <= 0 {
 		return fmt.Errorf("rate limit burst must be positive")
+	}
+
+	if c.RateLimit.APIKeyRequestsPerSecond <= 0 {
+		return fmt.Errorf("api key rate limit requests_per_second must be positive")
+	}
+
+	if c.RateLimit.APIKeyBurst <= 0 {
+		return fmt.Errorf("api key rate limit burst must be positive")
+	}
+
+	if c.Abuse.Enabled {
+		if c.Abuse.FailureThreshold <= 0 {
+			return fmt.Errorf("abuse_protection failure_threshold must be positive")
+		}
+		if c.Abuse.WindowSeconds <= 0 {
+			return fmt.Errorf("abuse_protection window_seconds must be positive")
+		}
+		if c.Abuse.BlockMinutes <= 0 {
+			return fmt.Errorf("abuse_protection block_minutes must be positive")
+		}
+	}
+
+	if c.APIAuth.Enabled && c.APIAuth.DefaultDailyLimit < 0 {
+		return fmt.Errorf("api_auth default_daily_limit cannot be negative")
+	}
+
+	if strings.TrimSpace(c.Qanlo.AgentName) == "" {
+		return fmt.Errorf("qanlo agent_name cannot be empty")
+	}
+
+	if strings.TrimSpace(c.Qanlo.AgentBaseURL) == "" {
+		return fmt.Errorf("qanlo agent_base_url cannot be empty")
+	}
+
+	if strings.TrimSpace(c.Qanlo.RechargeURL) == "" {
+		return fmt.Errorf("qanlo recharge_url cannot be empty")
+	}
+
+	if strings.TrimSpace(c.Qanlo.ReturnURL) == "" {
+		return fmt.Errorf("qanlo return_url cannot be empty")
 	}
 
 	return nil

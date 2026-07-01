@@ -67,8 +67,14 @@ func PoetryTypesTable(lang Lang) string {
 	return "poetry_types_zh_hans"
 }
 
+// PoemFTSTable returns the full-text search index table name for the given language.
+func PoemFTSTable(lang Lang) string {
+	return PoemsTable(lang) + "_fts"
+}
+
 // Internal lowercase versions for use within this package
 func poemsTable(lang Lang) string       { return PoemsTable(lang) }
 func authorsTable(lang Lang) string     { return AuthorsTable(lang) }
 func dynastiesTable(lang Lang) string   { return DynastiesTable(lang) }
 func poetryTypesTable(lang Lang) string { return PoetryTypesTable(lang) }
+func poemFTSTable(lang Lang) string     { return PoemFTSTable(lang) }

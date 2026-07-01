@@ -3,7 +3,9 @@ services:
     image: palemoky/chinese-poetry-api:latest
     container_name: poetry-api
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "${PORT:-1279}:${PORT:-1279}"
     environment:
@@ -13,6 +15,8 @@ services:
       # - DB_MAX_IDLE_CONNS=10
     volumes:
       - poetry-data:/app/data
+      - poetry-backups:/app/backups
 
 volumes:
   poetry-data:
+  poetry-backups:

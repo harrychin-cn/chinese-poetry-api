@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/palemoky/chinese-poetry-api/internal/api/middleware"
@@ -20,16 +22,46 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 
 	// CORS middleware
 	router.Use(middleware.CORS())
+	router.Use(middleware.RequestAudit(repo))
+
+	router.GET("/console", handler.ConsolePage)
+	router.GET("/docs", handler.DocsPage)
+	router.GET("/pricing", handler.PricingPage)
+	router.GET("/openapi.yaml", handler.OpenAPIYAML)
+
+	if cfg.Abuse.Enabled {
+		router.Use(middleware.AbuseBlocklist(repo))
+		if cfg.Abuse.AutoBlockEnabled {
+			detector := middleware.NewAbuseDetector(
+				repo,
+				cfg.Abuse.FailureThreshold,
+				time.Duration(cfg.Abuse.WindowSeconds)*time.Second,
+				time.Duration(cfg.Abuse.BlockMinutes)*time.Minute,
+			)
+			router.Use(detector.Middleware())
+		}
+	}
 
 	// Rate limiting middleware
+	var apiKeyLimiters []gin.HandlerFunc
 	if cfg.RateLimit.Enabled {
 		rateLimiter := middleware.NewRateLimiter(cfg.RateLimit.RequestsPerSecond, cfg.RateLimit.Burst)
 		router.Use(rateLimiter.Middleware())
+
+		apiKeyRateLimiter := middleware.NewRateLimiter(cfg.RateLimit.APIKeyRequestsPerSecond, cfg.RateLimit.APIKeyBurst)
+		apiKeyLimiters = append(apiKeyLimiters, apiKeyRateLimiter.APIKeyTokenMiddleware())
 	}
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
+		withAPIKey := func(auth gin.HandlerFunc, h gin.HandlerFunc) []gin.HandlerFunc {
+			handlers := make([]gin.HandlerFunc, 0, len(apiKeyLimiters)+2)
+			handlers = append(handlers, apiKeyLimiters...)
+			handlers = append(handlers, auth, h)
+			return handlers
+		}
+
 		// Health check
 		v1.GET("/health", handler.HealthHandler(db))
 
@@ -39,8 +71,28 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		// Poem routes
 		poemHandler := handler.NewPoemHandler(repo)
 		v1.GET("/poems", poemHandler.ListPoems)
+		if cfg.APIAuth.Enabled {
+			v1.GET("/poems/query", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), poemHandler.QueryPoems)...)
+			v1.GET("/poems/search/fulltext", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), poemHandler.SearchPoemsFTS)...)
+		} else {
+			v1.GET("/poems/query", poemHandler.QueryPoems)
+			v1.GET("/poems/search/fulltext", poemHandler.SearchPoemsFTS)
+		}
 		v1.GET("/poems/random", poemHandler.RandomPoem)
 		v1.GET("/poems/search", poemHandler.SearchPoems)
+
+		tagHandler := handler.NewTagHandler(repo)
+		v1.GET("/tags", tagHandler.ListTags)
+
+		knowledgeHandler := handler.NewKnowledgeHandler(repo)
+		v1.GET("/knowledge/scenarios", knowledgeHandler.ListScenarios)
+		if cfg.APIAuth.Enabled {
+			v1.GET("/knowledge/recall", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), knowledgeHandler.Recall)...)
+			v1.POST("/knowledge/batch", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), knowledgeHandler.BatchRecall)...)
+		} else {
+			v1.GET("/knowledge/recall", knowledgeHandler.Recall)
+			v1.POST("/knowledge/batch", knowledgeHandler.BatchRecall)
+		}
 
 		// Author routes
 		authorHandler := handler.NewAuthorHandler(repo)
@@ -56,6 +108,55 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		poetryTypeHandler := handler.NewPoetryTypeHandler(repo)
 		v1.GET("/types", poetryTypeHandler.ListPoetryTypes)
 		v1.GET("/types/:id", poetryTypeHandler.GetPoetryType)
+
+		// Client commercial entrypoint:
+		// create local API key -> bind/recharge via Qanlo -> use enhanced API.
+		apiKeyHandler := handler.NewAPIKeyHandler(repo, cfg.APIAuth)
+		v1.POST("/keys", apiKeyHandler.CreateClientAPIKey)
+		v1.GET("/keys/current", withAPIKey(middleware.APIKeyAuthNoUsage(repo), apiKeyHandler.GetCurrentAPIKey)...)
+
+		billingHandler := handler.NewBillingHandler(repo, cfg.Qanlo)
+		v1.POST("/billing/qanlo/provision", withAPIKey(middleware.APIKeyAuthNoUsage(repo), billingHandler.ProvisionQanlo)...)
+		v1.POST("/billing/qanlo/recharge-session", withAPIKey(middleware.APIKeyAuthNoUsage(repo), billingHandler.CreateQanloRechargeSession)...)
+		v1.GET("/billing/qanlo/callback", billingHandler.QanloCallback)
+		v1.GET("/billing/status", withAPIKey(middleware.APIKeyAuthNoUsage(repo), billingHandler.BillingStatus)...)
+
+		usageHandler := handler.NewUsageHandler(repo)
+		v1.GET("/usage/daily", withAPIKey(middleware.APIKeyAuthNoUsage(repo), usageHandler.ClientDaily)...)
+		v1.GET("/usage/endpoints", withAPIKey(middleware.APIKeyAuthNoUsage(repo), usageHandler.ClientEndpoints)...)
+		v1.GET("/usage/queries", withAPIKey(middleware.APIKeyAuthNoUsage(repo), usageHandler.ClientQueries)...)
+
+		feedbackHandler := handler.NewFeedbackHandler(repo)
+		v1.POST("/feedback", withAPIKey(middleware.APIKeyAuthNoUsage(repo), feedbackHandler.Create)...)
+
+		// Admin routes for commercial API key management
+		admin := v1.Group("/admin", middleware.AdminAuth(cfg.APIAuth.AdminToken))
+		abuseHandler := handler.NewAbuseHandler(repo)
+		admin.POST("/api-keys", apiKeyHandler.CreateAPIKey)
+		admin.GET("/api-keys", apiKeyHandler.ListAPIKeys)
+		admin.PATCH("/api-keys/:id", apiKeyHandler.UpdateAPIKey)
+		admin.DELETE("/api-keys/:id", apiKeyHandler.RevokeAPIKey)
+		admin.GET("/abuse/blocks", abuseHandler.ListBlocks)
+		admin.POST("/abuse/blocks", abuseHandler.CreateBlock)
+		admin.PATCH("/abuse/blocks/:id", abuseHandler.UpdateBlock)
+		admin.POST("/search/rebuild", poemHandler.RebuildSearchIndex)
+		admin.POST("/tags", tagHandler.UpsertTag)
+		admin.POST("/poems/:id/tags", tagHandler.AssignPoemTags)
+		admin.GET("/usage/daily", usageHandler.AdminDaily)
+		admin.GET("/usage/endpoints", usageHandler.AdminEndpoints)
+		admin.GET("/usage/queries", usageHandler.AdminQueries)
+		admin.GET("/feedback", feedbackHandler.List)
+		admin.PATCH("/feedback/:id", feedbackHandler.Update)
+
+		enrichmentHandler := handler.NewEnrichmentHandler(repo)
+		admin.POST("/enrichment/jobs", enrichmentHandler.CreateJob)
+		admin.GET("/enrichment/jobs", enrichmentHandler.ListJobs)
+		admin.GET("/enrichment/runs/:run_id/summary", enrichmentHandler.RunSummary)
+		admin.POST("/enrichment/review-items", enrichmentHandler.CreateReviewItem)
+		admin.GET("/enrichment/review-items", enrichmentHandler.ListReviewItems)
+		admin.POST("/enrichment/review-items/:id/accept", enrichmentHandler.AcceptReviewItem)
+		admin.PATCH("/enrichment/review-items/:id", enrichmentHandler.CorrectReviewItem)
+		admin.POST("/enrichment/review-items/:id/reject", enrichmentHandler.RejectReviewItem)
 	}
 
 	return router

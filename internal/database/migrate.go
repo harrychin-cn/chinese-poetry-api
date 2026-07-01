@@ -94,11 +94,38 @@ func (db *DB) Migrate() error {
 		if err := db.migrateTablesForLang(lang); err != nil {
 			return fmt.Errorf("failed to migrate tables for %s: %w", lang, err)
 		}
+		if sqliteFTS5Enabled {
+			if err := db.migrateFTSTableForLang(lang); err != nil {
+				return fmt.Errorf("failed to migrate fts table for %s: %w", lang, err)
+			}
+		}
 
 		// Insert initial data for this language variant
 		if err := db.insertInitialDataForLang(lang); err != nil {
 			return fmt.Errorf("failed to insert initial data for %s: %w", lang, err)
 		}
+	}
+
+	if err := db.migrateAPIKeyTables(); err != nil {
+		return fmt.Errorf("failed to migrate api key tables: %w", err)
+	}
+	if err := db.migrateBillingTables(); err != nil {
+		return fmt.Errorf("failed to migrate billing tables: %w", err)
+	}
+	if err := db.migrateTagTables(); err != nil {
+		return fmt.Errorf("failed to migrate tag tables: %w", err)
+	}
+	if err := db.migrateKnowledgeTables(); err != nil {
+		return fmt.Errorf("failed to migrate knowledge tables: %w", err)
+	}
+	if err := db.migrateRequestLogTables(); err != nil {
+		return fmt.Errorf("failed to migrate request log tables: %w", err)
+	}
+	if err := db.migrateFeedbackTables(); err != nil {
+		return fmt.Errorf("failed to migrate feedback tables: %w", err)
+	}
+	if err := db.migrateAbuseTables(); err != nil {
+		return fmt.Errorf("failed to migrate abuse protection tables: %w", err)
 	}
 
 	// Update schema version
@@ -112,6 +139,308 @@ func (db *DB) Migrate() error {
 	}
 
 	return nil
+}
+
+// migrateFTSTableForLang creates an FTS5 index table for Chinese full-text search.
+// The table is optional at runtime: if the binary is not built with -tags sqlite_fts5,
+// this returns a clear error so operators know how to build the commercial search edition.
+func (db *DB) migrateFTSTableForLang(lang Lang) error {
+	ftsTable := poemFTSTable(lang)
+	sql := fmt.Sprintf(`CREATE VIRTUAL TABLE IF NOT EXISTS %s USING fts5(
+		title,
+		content,
+		author
+	)`, ftsTable)
+	if err := db.Exec(sql).Error; err != nil {
+		return fmt.Errorf("failed to create FTS5 table %s; rebuild with -tags sqlite_fts5: %w", ftsTable, err)
+	}
+
+	return nil
+}
+
+func (db *DB) migrateTagTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS tags (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		category TEXT NOT NULL,
+		description TEXT,
+		source TEXT NOT NULL DEFAULT 'manual',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(name, category)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS poem_tags (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		poem_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (tag_id) REFERENCES tags(id),
+		UNIQUE(poem_id, tag_id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_tags_category_name ON tags(category, name)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_poem_tags_poem ON poem_tags(poem_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_poem_tags_tag ON poem_tags(tag_id)`)
+
+	return nil
+}
+
+func (db *DB) migrateAPIKeyTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS api_keys (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		key_hash TEXT NOT NULL UNIQUE,
+		key_prefix TEXT NOT NULL,
+		name TEXT NOT NULL,
+		tier TEXT NOT NULL DEFAULT 'free',
+		daily_limit INTEGER NOT NULL DEFAULT 1000,
+		enabled BOOLEAN NOT NULL DEFAULT TRUE,
+		notes TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		revoked_at DATETIME
+	)`).Error; err != nil {
+		return err
+	}
+	if err := db.ensureColumn("api_keys", "notes", "notes TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("api_keys", "updated_at", "updated_at DATETIME"); err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS api_key_usage (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER NOT NULL,
+		usage_date TEXT NOT NULL,
+		request_count INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
+		UNIQUE(api_key_id, usage_date)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key_usage_key_date ON api_key_usage(api_key_id, usage_date)`)
+
+	return nil
+}
+
+func (db *DB) migrateBillingTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS api_key_qanlo_bindings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER NOT NULL UNIQUE,
+		status TEXT NOT NULL DEFAULT 'pending',
+		external_user_id TEXT NOT NULL,
+		external_device_id TEXT NOT NULL,
+		qanlo_key_hash TEXT,
+		qanlo_key_prefix TEXT,
+		qanlo_base_url TEXT,
+		callback_state TEXT UNIQUE,
+		callback_expires_at DATETIME,
+		last_synced_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS qanlo_callback_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER NOT NULL,
+		callback_state TEXT NOT NULL UNIQUE,
+		event_type TEXT NOT NULL DEFAULT 'callback',
+		key_prefix TEXT,
+		qanlo_base_url TEXT,
+		raw_query TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_qanlo_bindings_api_key ON api_key_qanlo_bindings(api_key_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_qanlo_bindings_state ON api_key_qanlo_bindings(callback_state)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_qanlo_events_api_key ON qanlo_callback_events(api_key_id)`)
+
+	return nil
+}
+
+func (db *DB) migrateKnowledgeTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS poem_knowledge (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		poem_id INTEGER NOT NULL UNIQUE,
+		summary TEXT,
+		translation TEXT,
+		annotation TEXT,
+		recommendation TEXT,
+		quality_status TEXT NOT NULL DEFAULT 'draft',
+		source TEXT NOT NULL DEFAULT 'ai',
+		reviewer TEXT,
+		review_notes TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS poem_embeddings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		poem_id INTEGER NOT NULL,
+		provider TEXT NOT NULL,
+		model TEXT NOT NULL,
+		dimension INTEGER NOT NULL,
+		vector_json TEXT NOT NULL,
+		content_hash TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(poem_id, provider, model)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS enrichment_jobs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		status TEXT NOT NULL DEFAULT 'pending',
+		scope TEXT NOT NULL DEFAULT 'sample',
+		total_count INTEGER NOT NULL DEFAULT 0,
+		processed_count INTEGER NOT NULL DEFAULT 0,
+		accepted_count INTEGER NOT NULL DEFAULT 0,
+		rejected_count INTEGER NOT NULL DEFAULT 0,
+		error_count INTEGER NOT NULL DEFAULT 0,
+		config_json TEXT,
+		started_at DATETIME,
+		finished_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS enrichment_review_items (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		job_id INTEGER,
+		poem_id INTEGER NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		proposed_tags_json TEXT,
+		proposed_knowledge_json TEXT,
+		applied_tag_ids_json TEXT,
+		previous_knowledge_json TEXT,
+		reviewer TEXT,
+		review_notes TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (job_id) REFERENCES enrichment_jobs(id)
+	)`).Error; err != nil {
+		return err
+	}
+	if err := db.ensureColumn("enrichment_review_items", "applied_tag_ids_json", "applied_tag_ids_json TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("enrichment_review_items", "previous_knowledge_json", "previous_knowledge_json TEXT"); err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_poem_knowledge_status ON poem_knowledge(quality_status)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_poem_embeddings_poem_model ON poem_embeddings(poem_id, provider, model)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_status ON enrichment_jobs(status)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_enrichment_review_status ON enrichment_review_items(status)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_enrichment_review_poem ON enrichment_review_items(poem_id)`)
+
+	return nil
+}
+
+func (db *DB) migrateRequestLogTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS api_request_logs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER,
+		usage_date TEXT NOT NULL,
+		method TEXT NOT NULL,
+		path TEXT NOT NULL,
+		endpoint TEXT NOT NULL,
+		status_code INTEGER NOT NULL,
+		latency_ms INTEGER NOT NULL DEFAULT 0,
+		billable BOOLEAN NOT NULL DEFAULT FALSE,
+		error_class TEXT,
+		query_text TEXT,
+		query_signature TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_api_request_logs_key_date ON api_request_logs(api_key_id, usage_date)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_api_request_logs_date_endpoint ON api_request_logs(usage_date, endpoint)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_api_request_logs_query ON api_request_logs(usage_date, query_signature)`)
+
+	return nil
+}
+
+func (db *DB) migrateFeedbackTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS feedback_items (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER NOT NULL,
+		type TEXT NOT NULL DEFAULT 'other',
+		subject TEXT,
+		message TEXT NOT NULL,
+		contact TEXT,
+		status TEXT NOT NULL DEFAULT 'open',
+		admin_notes TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_feedback_status_created ON feedback_items(status, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_feedback_api_key_created ON feedback_items(api_key_id, created_at)`)
+
+	return nil
+}
+
+func (db *DB) migrateAbuseTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS abuse_blocks (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		target_type TEXT NOT NULL,
+		target_value TEXT NOT NULL,
+		reason TEXT NOT NULL DEFAULT 'manual',
+		enabled BOOLEAN NOT NULL DEFAULT TRUE,
+		expires_at DATETIME,
+		created_by TEXT NOT NULL DEFAULT 'operator',
+		notes TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(target_type, target_value)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_abuse_blocks_target ON abuse_blocks(target_type, target_value)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_abuse_blocks_active ON abuse_blocks(enabled, expires_at)`)
+
+	return nil
+}
+
+func (db *DB) ensureColumn(table, name, definition string) error {
+	var columns []struct {
+		Name string
+	}
+	if err := db.Raw(fmt.Sprintf("PRAGMA table_info(%s)", table)).Scan(&columns).Error; err != nil {
+		return err
+	}
+	for _, column := range columns {
+		if column.Name == name {
+			return nil
+		}
+	}
+	return db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", table, definition)).Error
 }
 
 // migrateTablesForLang creates all tables for a specific language variant

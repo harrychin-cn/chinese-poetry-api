@@ -35,6 +35,12 @@ jobs:
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: Run FTS5 tests
+        run: go test -v -tags sqlite_fts5 ./...
+
+      - name: Build Docker image
+        run: docker build -t chinese-poetry-api:ci .
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
         with:

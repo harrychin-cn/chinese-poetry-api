@@ -67,6 +67,10 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
+	if err := db.Migrate(); err != nil {
+		logger.Fatal("Failed to migrate database", zap.Error(err))
+	}
+
 	// Create repository
 	repo := database.NewRepository(db)
 

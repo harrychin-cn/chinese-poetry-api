@@ -11,8 +11,36 @@ database:
 
 rate_limit:
   enabled: true
+  # Global IP limiter for all routes.
   requests_per_second: 10
   burst: 20
+  # Short-cycle limiter for API-Key endpoints. It runs before auth, so 429 does not consume daily quota.
+  api_key_requests_per_second: 2
+  api_key_burst: 5
+
+abuse_protection:
+  enabled: true
+  # Auto-block repeated 401/429 failures in a short window.
+  auto_block_enabled: true
+  failure_threshold: 20
+  window_seconds: 60
+  block_minutes: 60
+
+api_auth:
+  enabled: false
+  admin_token: ""  # Set API_ADMIN_TOKEN in production
+  default_daily_limit: 1000
+
+qanlo:
+  # QanloAPI only. Customers create a local API key, then bind/recharge through Qanlo Agent Key.
+  agent_base_url: "https://qanlo.com"
+  openai_base_url: "https://qanlo.com/v1"
+  recharge_url: "https://qanlo.com/purchase?compact=1&from=agent_key&tab=recharge&ui_mode=embedded"
+  agent_app_id: ""  # Set QANLO_AGENT_APP_ID in production
+  agent_name: "chinese-poetry-api"
+  agent_model: "deepseek-v4-flash"
+  return_url: "http://localhost:1279/api/v1/billing/qanlo/callback"
+  callback_secret: ""  # Optional: set QANLO_CALLBACK_SECRET to protect callback
 
 graphql:
   playground: false  # Enable GraphQL Playground (set to true for development)

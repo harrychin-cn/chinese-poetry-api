@@ -20,6 +20,8 @@ type RepositoryInterface interface {
 	GetStatistics() (*Statistics, error)
 	ListPoems(limit, offset int) ([]Poem, error)
 	ListPoemsWithFilter(limit, offset int, dynastyID, authorID, typeID *int64) ([]Poem, int, error)
+	QueryPoems(filter PoemQueryFilter) ([]Poem, int64, error)
+	SearchPoemsFTS(filter PoemSearchFilter) ([]PoemSearchResult, int64, error)
 	ListAuthorPoems(authorID int64, limit, offset int) ([]Poem, int, error)
 	ListAuthorsWithFilter(limit, offset int, dynastyID *int64) ([]AuthorWithStats, int, error)
 	SearchPoems(query string, searchType string, page, pageSize int) ([]Poem, int64, error)
@@ -52,9 +54,13 @@ func (r *Repository) poemsTable() string       { return PoemsTable(r.lang) }
 func (r *Repository) authorsTable() string     { return AuthorsTable(r.lang) }
 func (r *Repository) dynastiesTable() string   { return DynastiesTable(r.lang) }
 func (r *Repository) poetryTypesTable() string { return PoetryTypesTable(r.lang) }
+func (r *Repository) poemFTSTable() string     { return PoemFTSTable(r.lang) }
 
 // Public accessors for external packages (e.g., search engine)
 func (r *Repository) DB() *DB                { return r.db }
 func (r *Repository) PoemsTable() string     { return r.poemsTable() }
 func (r *Repository) AuthorsTable() string   { return r.authorsTable() }
 func (r *Repository) DynastiesTable() string { return r.dynastiesTable() }
+func (r *Repository) PoetryTypesTable() string {
+	return r.poetryTypesTable()
+}

@@ -17,10 +17,22 @@ COPY internal/ internal/
 # Build the server binary with optimizations and cache
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo \
+    CGO_ENABLED=1 GOOS=linux go build -tags sqlite_fts5 -a -installsuffix cgo \
     -ldflags "-extldflags '-static' -s -w" \
     -trimpath \
     -o server ./cmd/server
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=1 GOOS=linux go build -tags sqlite_fts5 -a -installsuffix cgo \
+    -ldflags "-extldflags '-static' -s -w" \
+    -trimpath \
+    -o enrichment ./cmd/enrichment
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=1 GOOS=linux go build -tags sqlite_fts5 -a -installsuffix cgo \
+    -ldflags "-extldflags '-static' -s -w" \
+    -trimpath \
+    -o backup ./cmd/backup
 
 # Runtime stage
 FROM alpine:latest
@@ -31,6 +43,8 @@ WORKDIR /app
 
 # Copy binary, config, and startup script
 COPY --link --from=builder --chmod=755 /build/server .
+COPY --link --from=builder --chmod=755 /build/enrichment .
+COPY --link --from=builder --chmod=755 /build/backup .
 COPY --link --chmod=644 config.yaml .
 COPY --link --chmod=755 scripts/startup.sh .
 

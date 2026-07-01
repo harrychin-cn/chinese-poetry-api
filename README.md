@@ -21,6 +21,10 @@
 - **高性能**: Go 语言编写，支持并发处理，性能优化（简繁转换 ~300ns/op）
 - **海量数据**: 包含唐诗、宋词、元曲等近 40 万首诗词
 - **强大搜索**: 支持全文搜索、标题/内容/作者分类搜索
+- **商业增强查询**: 支持作者、朝代、体裁、标签、关键词、句数、字数的复合查询
+- **AI 知识库召回**: 支持“毕业离别”“中秋月亮”等自然语言场景召回，返回标签、推荐理由和引用格式
+- **AI 数据增强与抽检**: 支持小样本生成、格式校验、待审队列、人工通过/退回/修正、抽检报告和批次回滚
+- **商业化底座**: 支持 API Key、每日额度/限额调整、API Key 短周期限流、QanloAPI 精简充值、请求审计、每日趋势、接口错误率、热门查询、客户反馈和管理员接口
 - **双语支持**: 同一数据库同时存储简体和繁体中文，通过 `?lang=` 参数切换
 - **多种接口**: REST API 和 GraphQL 双接口支持
 - **限流保护**: 内置 IP 限流，防止滥用
@@ -36,6 +40,12 @@ docker run -d -p 1279:1279 palemoky/chinese-poetry-api:latest
 ```
 
 完整配置参见 [docker-compose.yml](docker-compose.yml)。
+
+生产环境建议使用 `docker compose`，它会持久化数据库和备份目录。需要手动备份时可执行：
+
+```bash
+docker compose exec poetry-api ./backup --db /app/data/poetry.db --out /app/backups --keep 7
+```
 
 ### 使用 Makefile
 
@@ -84,6 +94,26 @@ curl "http://localhost:1279/api/v1/poems?lang=zh-Hant"
 # 搜索诗词
 curl "http://localhost:1279/api/v1/poems/search?q=静夜思"
 
+# 增强复合查询
+curl "http://localhost:1279/api/v1/poems/query?author=李白&q=月&search_in=content&type=五言绝句"
+
+# 全文搜索（Docker 镜像默认开启 SQLite FTS5）
+curl "http://localhost:1279/api/v1/poems/search/fulltext?author=李白&q=明月&search_in=content"
+
+# 按增值标签查询
+curl "http://localhost:1279/api/v1/poems/query?tag=思乡&tag=月亮&tag_category=theme"
+
+# AI 知识库召回：自然语言意图 -> 场景/标签/关键词召回
+curl "http://localhost:1279/api/v1/knowledge/recall?q=找中秋月亮诗句&page_size=5"
+
+# 热门知识库场景
+curl "http://localhost:1279/api/v1/knowledge/scenarios"
+
+# 批量知识库召回
+curl -X POST "http://localhost:1279/api/v1/knowledge/batch" \
+  -H "Content-Type: application/json" \
+  -d '{"queries":[{"id":"moon","q":"中秋月亮"},{"id":"farewell","q":"毕业离别"}],"page_size":3}'
+
 # 随机诗词
 curl "http://localhost:1279/api/v1/poems/random"
 
@@ -100,6 +130,53 @@ curl "http://localhost:1279/api/v1/authors?page=1&page_size=20"
 # 朝代列表
 curl "http://localhost:1279/api/v1/dynasties"
 ```
+
+商业增强能力文档：
+
+- [开发规划](docs/development-plan.md)
+- [增强复合查询 API](docs/advanced-query-api.md)
+- [AI 知识库召回 API](docs/knowledge-api.md)
+- [全文搜索 API](docs/fulltext-search.md)
+- [增值标签 API](docs/value-added-tags.md)
+- [AI 数据增强与人工抽检](docs/data-enrichment.md)
+- [API Key、额度控制、短周期限流、封禁、客户反馈与 Usage 运营统计](docs/commercial-api-keys.md)
+- [产品包装与收费方案](docs/product-offer.md)
+- [客户可见价格与套餐页](docs/pricing.md)
+- [商业验证记录模板](docs/commercial-validation.md)
+- [SQLite 备份策略](docs/backup-strategy.md)
+- [生产运营与恢复演练 Runbook](docs/operations-runbook.md)
+
+商业化闭环已收敛为 QanloAPI 精简链路：客户端可 `POST /api/v1/keys` 创建本项目 API Key，再调用 `/api/v1/billing/qanlo/provision` 或 `/api/v1/billing/qanlo/recharge-session` 跳转 Qanlo 绑定/充值，回调 `/api/v1/billing/qanlo/callback` 后通过 `/api/v1/billing/status` 查看状态。首版价格/套餐只作为 `tier` 与 `daily_limit` 的运营标记，充值与扣费走 QanloAPI 按调用收费，不在本项目内自建支付/订单系统。运营统计已补 `GET /api/v1/usage/daily`、`GET /api/v1/usage/endpoints`、`GET /api/v1/usage/queries` 和管理员 usage 聚合；客户可通过 `POST /api/v1/feedback` 提交反馈，管理员可通过 `PATCH /api/v1/admin/api-keys/:id` 做启停、每日限额和备注调整，并可通过 `/api/v1/admin/abuse/blocks` 封禁/解封异常 IP 或 API Key。
+
+AI 数据增强试跑建议先走一键脚本：
+
+```powershell
+.\scripts\enrichment_trial.ps1 -Db data\poetry.db -Limit 100 -Provider rules
+```
+
+Windows 本地如果没有 CGO/gcc，可以用一键验证脚本自动切到 Docker 跑测试：
+
+```powershell
+.\scripts\test_local.ps1
+```
+
+需要同时验 Docker 镜像时：
+
+```powershell
+.\scripts\test_local.ps1 -DockerBuild
+```
+
+服务启动后，可以用低成本商业闭环 smoke 检查创建 Key、鉴权查询、用量和反馈链路：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke_commercial.ps1
+```
+
+启动服务后也可以直接打开：
+
+- 控制台：`http://localhost:1279/console`
+- 文档站雏形：`http://localhost:1279/docs`
+- 价格套餐页：`http://localhost:1279/pricing`
 
 ### GraphQL API
 

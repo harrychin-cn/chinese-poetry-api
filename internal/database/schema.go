@@ -2,7 +2,7 @@ package database
 
 const (
 	// Schema version for migrations
-	SchemaVersion = 1
+	SchemaVersion = 11
 )
 
 // InitialDynastiesSQL contains initial data for dynasties
