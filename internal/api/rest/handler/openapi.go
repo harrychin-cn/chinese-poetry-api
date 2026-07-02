@@ -317,7 +317,7 @@ paths:
         - Images
       summary: Generate a poetry mood image in the console
       operationId: generatePoetryImage
-      description: Requires X-API-Key. The server calls the configured OpenAI-compatible image gateway with IMAGE_API_KEY; public clients never receive that upstream key.
+      description: Requires X-API-Key. Public clients provide their own Qanlo image key as image_api_key in the request body; the server only proxies that key for this request and does not store it.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -328,11 +328,15 @@ paths:
               type: object
               required:
                 - prompt
+                - image_api_key
               properties:
                 prompt:
                   type: string
                 size:
                   type: string
+                image_api_key:
+                  type: string
+                  format: password
                   enum: ["1024x1024", "1024x1536", "1536x1024", "2048x1152"]
       responses:
         "200":

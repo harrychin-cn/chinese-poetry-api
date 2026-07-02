@@ -213,15 +213,14 @@ curl -X POST "http://localhost:1279/api/v1/knowledge/batch" \
 curl -X POST "http://localhost:1279/api/v1/images/generate" \
   -H "X-API-Key: cp_live_xxx" \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"古风水墨，江南春景，轻舟远山，留白构图","size":"1024x1024"}'
+  -d '{"prompt":"古风水墨，江南春景，轻舟远山，留白构图","size":"1024x1024","image_api_key":"你的 Qanlo 生图 API Key"}'
 ```
 
-这个接口必须先校验本地 `X-API-Key`，不会公开创建免费 Key。服务器只有在配置了 `IMAGE_API_KEY` 后才会调用上游 Qanlo 生图网关；未配置时返回 `503 image_config_missing`，不消耗生图额度。
+这个接口必须先校验本地 `X-API-Key`，不会公开创建免费 Key。用户在控制台填写自己的 Qanlo 生图 API Key 后，前端会随本次请求传入 `image_api_key`；服务器只代转，不落库、不使用全站后台环境变量。未提供时返回 `400 image_api_key_required`，不消耗生图额度。
 
-可选服务端配置：
+可选服务端网关默认配置：
 
 ```bash
-IMAGE_API_KEY=sk-...
 IMAGE_BASE_URL=https://qanlo.com/openai/v1
 IMAGE_MODEL=gpt-image-2
 IMAGE_QUALITY=high

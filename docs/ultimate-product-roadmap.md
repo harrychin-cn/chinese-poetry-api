@@ -384,9 +384,9 @@ PCQF-2026-00000001
 - 图片模型配置：
 
 ```text
-IMAGE_API_KEY
 IMAGE_BASE_URL
 IMAGE_MODEL=gpt-image-2
+用户在生图页面填写自己的 Qanlo 生图 API Key
 ```
 
 - 生成图片；

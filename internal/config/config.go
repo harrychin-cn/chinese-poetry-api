@@ -79,7 +79,8 @@ type QanloConfig struct {
 	CallbackSecret string `mapstructure:"callback_secret"`
 }
 
-// ImageConfig holds optional server-side image generation gateway settings.
+// ImageConfig holds image generation gateway defaults. Users provide the image
+// API key per request from the console page; it is not a site-wide server key.
 type ImageConfig struct {
 	APIKey         string `mapstructure:"api_key"`
 	BaseURL        string `mapstructure:"base_url"`
@@ -285,10 +286,8 @@ func bindEnvVars(v *viper.Viper) {
 		v.Set("qanlo.callback_secret", secret)
 	}
 
-	// Optional image generation gateway. The API key stays server-side only.
-	if apiKey := os.Getenv("IMAGE_API_KEY"); apiKey != "" {
-		v.Set("image.api_key", apiKey)
-	}
+	// Optional image generation gateway defaults. Users paste their own Qanlo
+	// image key in the console page; no site-wide image key is read from env.
 	if baseURL := os.Getenv("IMAGE_BASE_URL"); baseURL != "" {
 		v.Set("image.base_url", baseURL)
 	}

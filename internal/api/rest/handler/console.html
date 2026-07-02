@@ -313,7 +313,21 @@
         <button class="btn primary" id="searchBtn" type="button">🔍 搜索诗词</button>
         <button class="btn ghost" id="promptBtn" type="button">▧ 生成图片</button>
       </div>
-      <p class="soft-note">点击“生成图片”会先校验 Key 与额度，再由服务器调用 Qanlo 生图并显示在右侧；未配置生图密钥时只返回提示，不会白嫖额度。</p>
+      <p class="soft-note">点击“生成图片”会先校验 API Key、额度和你填写的 Qanlo 生图 Key，再生成并显示在右侧。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <h2>Qanlo 生图 Key</h2>
+        <span class="status off" id="imageKeyStatus"><i class="dot"></i>未保存</span>
+      </div>
+      <label for="imageApiKey">生图 API Key</label>
+      <div class="key-row">
+        <input id="imageApiKey" type="password" placeholder="粘贴你在 qanlo.com 创建的生图 Key" autocomplete="off" />
+        <button class="icon-btn" type="button" id="saveImageKey" title="保存到本机">存</button>
+        <button class="icon-btn" type="button" id="clearImageKey" title="清除生图 Key">清</button>
+      </div>
+      <p class="soft-note">这个 Key 只保存在本浏览器。服务器只在本次生图请求中转发使用，不落库、不作为全站后台环境变量。</p>
     </section>
 
     <section class="card">
@@ -422,6 +436,8 @@
     content: ["闲梦远，南国正芳春。", "船上管弦江面绿，满城飞絮滚轻尘。", "忙杀看花人。"]
   };
   var state = { poems: [], activeScenario: "山水文旅", current: sample };
+  var poetryKeyStorage = "poetry_api_key";
+  var imageKeyStorage = "poetry_image_api_key";
   function $(id) { return document.getElementById(id); }
   function appBase() {
     var p = window.location.pathname || "/";
@@ -459,14 +475,55 @@
     el.classList.toggle("off", !on);
     el.innerHTML = '<i class="dot"></i>' + text;
   }
+  function imageApiKey() { return (($("imageApiKey") && $("imageApiKey").value) || "").trim(); }
+  function setImageKeyStatus(on, text) {
+    var el = $("imageKeyStatus");
+    if (!el) return;
+    el.classList.toggle("off", !on);
+    el.innerHTML = '<i class="dot"></i>' + text;
+  }
+  function saveImageKey(silent) {
+    var key = imageApiKey();
+    if (key) {
+      localStorage.setItem(imageKeyStorage, key);
+      setImageKeyStatus(true, "已保存");
+      if (!silent) toast("生图 Key 已保存到本机");
+      return key;
+    }
+    localStorage.removeItem(imageKeyStorage);
+    setImageKeyStatus(false, "未保存");
+    if (!silent) toast("请先粘贴 Qanlo 生图 API Key");
+    return "";
+  }
+  function clearImageKey() {
+    localStorage.removeItem(imageKeyStorage);
+    if ($("imageApiKey")) $("imageApiKey").value = "";
+    setImageKeyStatus(false, "未保存");
+    toast("已清除本机生图 Key");
+  }
+  function requireImageKey() {
+    var typedKey = imageApiKey();
+    var key = typedKey || (localStorage.getItem(imageKeyStorage) || "").trim();
+    if (!key) {
+      var msg = "请先在左侧填写并保存 Qanlo 生图 API Key";
+      previewMessage("缺少生图 Key", msg + "；在 qanlo.com 创建后复制到这里。", "error");
+      toast(msg);
+      throw new Error("missing image api key");
+    }
+    if (typedKey && typedKey !== localStorage.getItem(imageKeyStorage)) {
+      localStorage.setItem(imageKeyStorage, typedKey);
+    }
+    setImageKeyStatus(true, "已保存");
+    return key;
+  }
   function saveKey() {
     var key = apiKey();
     if (key) {
-      localStorage.setItem("poetry_api_key", key);
+      localStorage.setItem(poetryKeyStorage, key);
       toast("Key 已保存到本机");
       refreshStatus();
     } else {
-      localStorage.removeItem("poetry_api_key");
+      localStorage.removeItem(poetryKeyStorage);
       setKeyStatus(false, "未配置");
       $("todayUsage").textContent = "--";
       $("dailyLimit").textContent = "--";
@@ -488,7 +545,7 @@
       toast("请先填写已开通的 Key；本页不会自动创建免费 Key");
       throw new Error("missing api key");
     }
-    localStorage.setItem("poetry_api_key", key);
+    localStorage.setItem(poetryKeyStorage, key);
     return key;
   }
   async function refreshStatus() {
@@ -654,6 +711,7 @@
   }
   async function generateImage() {
     var key = requireKey();
+    var imageKey = requireImageKey();
     var prompt = buildPrompt();
     var btn = $("promptBtn");
     var oldText = btn.textContent;
@@ -664,7 +722,7 @@
       var json = await fetchJSON("/api/v1/images/generate", {
         method: "POST",
         headers: { "X-API-Key": key, "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt, size: imageSize() })
+        body: JSON.stringify({ prompt: prompt, size: imageSize(), image_api_key: imageKey })
       });
       var data = json.data || json;
       var src = data.image_url || (data.b64_json ? ("data:" + (data.mime_type || "image/png") + ";base64," + data.b64_json) : "");
@@ -740,6 +798,9 @@
   $("saveKey").onclick = saveKey;
   $("copyKey").onclick = function () { if (apiKey()) copyText(apiKey(), "Key 已复制"); };
   $("apiKey").addEventListener("change", saveKey);
+  $("saveImageKey").onclick = function () { saveImageKey(false); };
+  $("clearImageKey").onclick = clearImageKey;
+  $("imageApiKey").addEventListener("change", function () { saveImageKey(true); });
   $("query").addEventListener("input", updateCounter);
   $("searchBtn").onclick = searchPoems;
   $("promptBtn").onclick = generateImage;
@@ -755,7 +816,9 @@
   $("style").onchange = buildPrompt;
   $("ratio").onchange = buildPrompt;
   window.addEventListener("resize", schedulePoemFit);
-  $("apiKey").value = localStorage.getItem("poetry_api_key") || "";
+  $("apiKey").value = localStorage.getItem(poetryKeyStorage) || "";
+  $("imageApiKey").value = localStorage.getItem(imageKeyStorage) || "";
+  setImageKeyStatus(!!$("imageApiKey").value, $("imageApiKey").value ? "已保存" : "未保存");
   renderChips();
   updateCounter();
   renderPoem(sample);

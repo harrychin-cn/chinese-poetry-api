@@ -43,9 +43,8 @@ qanlo:
   callback_secret: ""  # Optional: set QANLO_CALLBACK_SECRET to protect callback
 
 image:
-  # Optional server-side image generation for /api/v1/images/generate.
-  # Leave api_key empty to disable direct image generation without consuming quota.
-  api_key: ""  # Set IMAGE_API_KEY in production
+  # Image generation gateway defaults. Users provide their own Qanlo image key in the console page.
+  api_key: ""  # Deprecated: server-side site-wide image keys are not used.
   base_url: "https://qanlo.com/openai/v1"
   model: "gpt-image-2"
   quality: "high"

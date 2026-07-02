@@ -8,7 +8,7 @@ import (
 )
 
 // ConsolePage returns the built-in customer console for API key, Qanlo billing,
-// poem search, and optional server-side image generation.
+// poem search, and user-provided Qanlo image-key generation.
 func ConsolePage(c *gin.Context) {
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(consoleHTML))
 }
@@ -33,7 +33,7 @@ const docsHTML = `<!doctype html>
 <section class="card"><h2>认证方式</h2><p>客户调用使用 <code>X-API-Key</code>。管理员接口使用 <code>X-Admin-Token</code>。</p><pre>curl "http://localhost:1279/api/v1/poems/query?q=月&page_size=3" \
   -H "X-API-Key: cp_live_xxx"</pre></section>
 <section class="card"><h2>核心接口</h2><ul><li><code>POST /api/v1/keys</code>：公开入口已禁用创建，返回 403；Key 必须由管理员或 Qanlo 开通链路发放。</li><li><code>GET /api/v1/keys/current</code>：查看当前 Key 和今日用量。</li><li><code>POST /api/v1/billing/qanlo/provision</code>：生成 Qanlo Agent Key 绑定 URL。</li><li><code>POST /api/v1/billing/qanlo/recharge-session</code>：生成 Qanlo 充值 URL。</li><li><code>GET /api/v1/poems/query</code>：诗词复合查询。</li><li><code>GET /api/v1/poems/search/fulltext</code>：全文搜索。</li><li><code>GET /api/v1/knowledge/recall</code>：AI 知识库召回。</li><li><code>POST /api/v1/knowledge/batch</code>：批量知识库召回。</li><li><code>POST /api/v1/images/generate</code>：诗词意境图生成。</li><li><code>POST /api/v1/feedback</code>：客户反馈。</li></ul></section>
-<section class="card"><h2>生图能力</h2><p>控制台右侧图片区已接入可选直接生图。接口会先校验 <code>X-API-Key</code> 和每日额度，再由服务器使用 <code>IMAGE_API_KEY</code> 调用 Qanlo 生图网关；未配置时返回 <code>503 image_config_missing</code>，不会消耗生图额度。</p></section>
+<section class="card"><h2>生图能力</h2><p>控制台右侧图片区已接入直接生图。用户在页面填写并本地保存自己的 Qanlo 生图 API Key；接口会先校验 <code>X-API-Key</code> 和每日额度，再把本次请求里的 <code>image_api_key</code> 代转给 Qanlo 生图网关，不落库、不使用服务器全站 Key；未提供时返回 <code>400 image_api_key_required</code>，不会消耗生图额度。</p></section>
 <section class="card"><h2>运营接口</h2><ul><li><code>GET /api/v1/admin/api-keys</code>：管理员查看客户 Key。</li><li><code>PATCH /api/v1/admin/api-keys/:id</code>：调整每日限额、套餐和启停状态。</li><li><code>GET /api/v1/admin/feedback</code>：查看客户反馈。</li><li><code>GET /api/v1/admin/usage/daily</code>：全站每日趋势。</li></ul></section>
 <section class="card"><h2>更多接口</h2><p><code>GET /api/v1/billing/status</code> <code>GET /api/v1/admin/enrichment/runs/:run_id/summary</code> <code>GET /api/v1/admin/abuse/blocks</code></p></section>
 </main></body></html>`

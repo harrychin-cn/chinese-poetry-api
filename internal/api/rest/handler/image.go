@@ -17,8 +17,8 @@ import (
 	"github.com/palemoky/chinese-poetry-api/internal/database"
 )
 
-// ImageHandler proxies optional server-side image generation to the configured
-// OpenAI-compatible image gateway. The gateway API key is never exposed to the browser.
+// ImageHandler proxies image generation to the configured OpenAI-compatible
+// gateway. The gateway API key is supplied by the user per request.
 type ImageHandler struct {
 	repo   *database.Repository
 	cfg    config.ImageConfig
@@ -41,8 +41,9 @@ func NewImageHandler(repo *database.Repository, cfg config.ImageConfig) *ImageHa
 }
 
 type generateImageRequest struct {
-	Prompt string `json:"prompt"`
-	Size   string `json:"size"`
+	Prompt      string `json:"prompt"`
+	Size        string `json:"size"`
+	ImageAPIKey string `json:"image_api_key"`
 }
 
 type openAIImageRequest struct {
@@ -74,18 +75,19 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(h.cfg.APIKey) == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "image generation is not configured",
-			"code":    "image_config_missing",
-			"message": "服务器还没有配置 IMAGE_API_KEY，因此不会消耗生图额度；可先复制 Prompt 到 qanlo.com 在线生图。",
-		})
-		return
-	}
-
 	var req generateImageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "invalid image request")
+		return
+	}
+
+	imageAPIKey := strings.TrimSpace(req.ImageAPIKey)
+	if imageAPIKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "image api key required",
+			"code":    "image_api_key_required",
+			"message": "请先在页面填写并保存 Qanlo 生图 API Key，再生成图片。",
+		})
 		return
 	}
 
@@ -138,7 +140,7 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 		respondError(c, http.StatusInternalServerError, "failed to build upstream request")
 		return
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(h.cfg.APIKey))
+	httpReq.Header.Set("Authorization", "Bearer "+imageAPIKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 

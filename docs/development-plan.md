@@ -84,18 +84,18 @@
 | 方案 | 产品形态 | 技术要求 | 执行口径 |
 | --- | --- | --- | --- |
 | 方案 A：API 只返回诗词和 prompt | `唐诗宋词API -> 返回诗词/意境/prompt -> Codex、前端或客户自己的系统再调用 gpt-image-2 生图` | 本项目只需要文本能力；可由规则模板或 QanloAPI 生成稳定 prompt | **优先方案**。先做成低成本增值字段，不消耗本项目服务器生图额度 |
-| 方案 B：API 直接返回图片 | `用户请求 -> 唐诗宋词API -> 查诗 -> 生成 prompt -> 调用 gpt-image-2 -> 返回图片` | 服务端必须配置支持图片生成接口的内部 Key/网关，如 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2` | **后置方案**。等有明确客户需求、成本边界和网关验证后再执行 |
+| 方案 B：API 直接返回图片 | `用户请求 -> 唐诗宋词API -> 查诗 -> 生成 prompt -> 携带用户自己的 Qanlo 生图 Key 调用 gpt-image-2 -> 返回图片` | 服务端只配置网关默认项，如 `IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2`；生图 Key 由用户在页面填写并随本次请求传入 | **后置方案**。等有明确客户需求、成本边界和网关验证后再执行 |
 
 必须分开两套 Key：
 
 1. **用户访问诗词 API 的 Key**：只负责鉴权、限流、计费、统计和风控。
-2. **服务器内部调用模型/生图模型的 Key**：只由服务端持有，用来调用 `gpt-image-2` 或兼容图片生成网关。
+2. **用户自己的 Qanlo 生图 Key**：只保存在用户浏览器，本次生图请求传入，服务端只代转不落库。
 
 固定规则：
 
 - 不把用户的诗词 API Key 直接拿去调模型或生图接口。
 - 当前 `agent_model` 偏文本/知识召回，不能当成图片生成模型使用。
-- 未配置并验证 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL` 前，接口不得承诺“直接返回图片”。
+- 未验证用户自带 `image_api_key`、`IMAGE_BASE_URL`、`IMAGE_MODEL` 链路前，接口不得承诺“直接返回图片”。
 - 方案 A 的 prompt 字段可以先进入 API/文档/示例；方案 B 只进入待执行队列，不阻塞当前最终验收。
 
 ---
@@ -580,9 +580,9 @@ flowchart LR
 1. 先补方案 A：接口返回 `image_prompt`、`visual_mood`、`style_hint`、`negative_prompt` 等文本字段。
 2. 文档和示例先教客户如何拿 prompt 去 Codex、前端或自己的生图服务里调用 `gpt-image-2`。
 3. 只有当真实客户明确需要“诗词 API 直接返回图片”时，才进入方案 B。
-4. 方案 B 必须新增服务端内部配置：`IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2`，并确认网关支持图片生成接口。
+4. 方案 B 服务端只保留网关默认配置：`IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2`；生图 Key 由用户在页面填写并随请求传入。
 5. 方案 B 必须有缓存、单 Key 限额、失败降级、成本记录和后台开关；默认关闭。
-6. 用户访问诗词 API 的 Key 与服务器内部生图 Key 必须完全隔离。
+6. 用户访问诗词 API 的 Key 与用户自己的 Qanlo 生图 Key 必须分开填写、分开使用。
 
 ### 7.5 技术债固定处理队列
 
@@ -605,7 +605,7 @@ flowchart LR
 1. 数据增强批次抽检通过率低于 90%，停止扩批，先进入失败原因分析。
 2. `quality-gate` 出现 error，不导入数据库。
 3. 真实 QanloAPI 批量调用前没有确认 `QANLO_AGENT_KEY` 和成本边界，不批量跑。
-4. 真实生图调用前没有确认 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、单次成本和缓存策略，不批量跑；未验证网关图片接口前不承诺直接返回图片。
+4. 真实生图调用前没有确认用户自带 `image_api_key`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、单次成本和缓存策略，不批量跑；未验证网关图片接口前不承诺直接返回图片。
 5. 本地验证没过，不 push、不部署、不反复烧 GitHub Actions。
 6. CI/部署失败如果是账单、额度、Runner、网络、权限等外部问题，立即停止，不反复 rerun。
 7. 发现增强数据无法回滚或无法追溯来源，暂停发布。
