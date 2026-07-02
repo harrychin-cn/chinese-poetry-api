@@ -345,8 +345,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "429":
           $ref: "#/components/responses/Forbidden"
-        "503":
-          $ref: "#/components/responses/Forbidden"
+        "400":
+          $ref: "#/components/responses/BadRequest"
   /api/v1/authors:
     get:
       tags:
