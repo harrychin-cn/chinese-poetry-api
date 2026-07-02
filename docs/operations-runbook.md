@@ -11,7 +11,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke_commercial.p
 检查项：
 
 - `/api/v1/health` 正常。
-- 客户可 `POST /api/v1/keys` 创建 API Key。
+- 公开 `POST /api/v1/keys` 返回 403；Key 由管理员或受信任的 Qanlo 开通链路发放。
 - Qanlo 状态/充值入口可返回 URL；脚本不会打开外部充值页，也不会发起付费调用。
 - 增强查询、客户 usage、客户反馈链路可用。
 

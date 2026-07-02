@@ -39,6 +39,24 @@ func setupAPIKeyTestRouter(t *testing.T) (*gin.Engine, *database.Repository) {
 	return router, repo
 }
 
+func TestPublicClientAPIKeyCreationDisabled(t *testing.T) {
+	router, _ := setupAPIKeyTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/keys", strings.NewReader(`{
+		"name":"anonymous visitor",
+		"tier":"trial"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Contains(t, resp["error"], "public api key creation is disabled")
+	assert.NotContains(t, resp, "api_key")
+}
+
 func TestAPIKeyAdminUpdateFlow(t *testing.T) {
 	router, _ := setupAPIKeyTestRouter(t)
 

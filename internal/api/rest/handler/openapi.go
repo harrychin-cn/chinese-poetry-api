@@ -380,16 +380,14 @@ paths:
     post:
       tags:
         - Client Keys
-      summary: Create a client API key
+      summary: Public client API key creation is disabled
       operationId: createClientAPIKey
       security: []
       requestBody:
         $ref: "#/components/requestBodies/JSONBody"
       responses:
-        "200":
-          $ref: "#/components/responses/OK"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/keys/current:
     get:
       tags:

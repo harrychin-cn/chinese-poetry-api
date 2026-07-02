@@ -42,52 +42,11 @@ type updateAPIKeyRequest struct {
 	Notes      *string `json:"notes"`
 }
 
-// CreateClientAPIKey creates a client-side trial API key using the default daily limit.
-// This supports the commercial onboarding flow: client creates key -> Qanlo recharge -> use API.
+// CreateClientAPIKey intentionally does not create keys from the public console.
+// API keys must be issued by the admin route or a trusted provisioning flow,
+// otherwise an anonymous visitor could mint a usable key without recharge.
 func (h *APIKeyHandler) CreateClientAPIKey(c *gin.Context) {
-	var req createAPIKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, "invalid json body")
-		return
-	}
-
-	name := req.Name
-	if name == "" {
-		name = "client api key"
-	}
-	tier := req.Tier
-	if tier == "" {
-		tier = "trial"
-	}
-
-	key, rawKey, err := h.repo.CreateAPIKey(database.CreateAPIKeyParams{
-		Name:       name,
-		Tier:       tier,
-		DailyLimit: h.defaultDailyLimit,
-		Notes:      req.Notes,
-	})
-	if err != nil {
-		if errors.Is(err, database.ErrInvalidQueryParam) {
-			respondError(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		respondError(c, http.StatusInternalServerError, "failed to create api key")
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"data": gin.H{
-			"id":          key.ID,
-			"name":        key.Name,
-			"tier":        key.Tier,
-			"daily_limit": key.DailyLimit,
-			"enabled":     key.Enabled,
-			"notes":       key.Notes,
-			"key_prefix":  key.KeyPrefix,
-			"api_key":     rawKey,
-			"notice":      "store this api_key now; it will not be shown again",
-		},
-	})
+	respondError(c, http.StatusForbidden, "public api key creation is disabled; open or recharge a key from Qanlo, or ask an admin to issue one")
 }
 
 // GetCurrentAPIKey returns the current API key profile without incrementing usage.

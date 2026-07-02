@@ -26,7 +26,7 @@
 | 文档入口存在 | DONE | `/docs`、`/openapi.yaml`、`scripts/smoke_commercial.ps1` | smoke 已验证 |
 | 控制台入口存在 | DONE | `/console`、`scripts/smoke_commercial.ps1` | smoke 已验证 |
 | 价格页入口存在 | DONE | `/pricing`、`scripts/smoke_commercial.ps1` | smoke 已验证 |
-| 客户可创建 API Key | DONE | `POST /api/v1/keys`、`scripts/smoke_commercial.ps1` | smoke 已验证 |
+| 公开自助创建 API Key 已禁用，管理员/Qanlo 可发放 Key | DONE | `POST /api/v1/keys`、`POST /api/v1/admin/api-keys`、`scripts/smoke_commercial.ps1` | 公开路由 403，管理员发放 smoke 已验证 |
 | 客户可查看当前 Key | DONE | `GET /api/v1/keys/current`、`scripts/smoke_commercial.ps1` | smoke 已验证 |
 | 客户可试调用查询 API | DONE | `GET /api/v1/poems/query`、`scripts/smoke_commercial.ps1` | 返回 1 条数据 |
 | 额度不足可获得 Qanlo 充值入口 | DONE | `quota exceeded recharge hint` smoke | 429 返回 `recharge_endpoint` |

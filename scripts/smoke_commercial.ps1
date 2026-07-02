@@ -384,15 +384,17 @@ $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "open
 )
 $consolePage = Invoke-SmokeTextRequest -Method GET -Path "/console" -Step "console page" -Contains @(
     "AI 诗词知识库 API 控制台",
-    "创建 API Key",
+    "诗画工坊",
+    "本页不会自动创建免费 Key",
     "Qanlo 绑定 / 充值",
     "AI 知识库召回",
-    "客户反馈"
+    "进入在线生图"
 )
 $pricingPage = Invoke-SmokeTextRequest -Method GET -Path "/pricing" -Step "pricing page" -Contains @(
     "AI 诗词知识库 API 价格套餐",
     "QanloAPI",
-    "立即试用",
+    "进入控制台",
+    "公开控制台不会自动创建免费 Key",
     "/api/v1/billing/qanlo/recharge-session"
 )
 Write-Host ("      docs bytes={0}, openapi bytes={1}, console bytes={2}, pricing bytes={3}" -f $docsPage.Content.Length, $openAPI.Content.Length, $consolePage.Content.Length, $pricingPage.Content.Length)
@@ -403,10 +405,21 @@ $createKeyBody = [ordered]@{
     tier  = "trial"
     notes = "local commercial smoke only; no external payment"
 }
-$createKey = Invoke-SmokeRequest -Method POST -Path "/api/v1/keys" -Step "create key" -Body $createKeyBody -ExpectedStatus @(201) -SensitiveResponse
+$publicCreate = Invoke-SmokeRequest -Method POST -Path "/api/v1/keys" -Step "public create key disabled" -Body $createKeyBody -ExpectedStatus @(403)
+if ($publicCreate.Json.error -notlike "*public api key creation is disabled*") {
+    throw "[public create key disabled] expected disabled message but got: $($publicCreate.Json.error)"
+}
+Write-Host "      public key self-creation is disabled."
+
+if ([string]::IsNullOrWhiteSpace($AdminToken)) {
+    throw "AdminToken is required for commercial smoke now that public API key creation is disabled."
+}
+
+$adminHeaders = @{ "X-Admin-Token" = $AdminToken }
+$createKey = Invoke-SmokeRequest -Method POST -Path "/api/v1/admin/api-keys" -Step "admin create smoke key" -Headers $adminHeaders -Body $createKeyBody -ExpectedStatus @(201) -SensitiveResponse
 $script:RawApiKey = [string]$createKey.Json.data.api_key
-Assert-Field -Step "create key" -Value $script:RawApiKey -Field "data.api_key"
-Assert-Field -Step "create key" -Value $createKey.Json.data.id -Field "data.id"
+Assert-Field -Step "admin create smoke key" -Value $script:RawApiKey -Field "data.api_key"
+Assert-Field -Step "admin create smoke key" -Value $createKey.Json.data.id -Field "data.id"
 Write-Host ("      created key id={0}, key={1}, prefix={2}" -f $createKey.Json.data.id, (Mask-Secret $script:RawApiKey), $createKey.Json.data.key_prefix)
 
 $apiHeaders = @{ "X-API-Key" = $script:RawApiKey }
@@ -541,7 +554,6 @@ Assert-Field -Step "feedback" -Value $feedback.Json.data.id -Field "data.id"
 Write-Host ("      feedback id={0}, status={1}" -f $feedback.Json.data.id, $feedback.Json.data.status)
 
 if (-not [string]::IsNullOrWhiteSpace($AdminToken)) {
-    $adminHeaders = @{ "X-Admin-Token" = $AdminToken }
     $adminKeys = Invoke-SmokeRequest -Method GET -Path "/api/v1/admin/api-keys" -Step "admin api keys" -Headers $adminHeaders -ExpectedStatus @(200)
     if ($null -eq $adminKeys.Json.data) {
         throw "[admin api keys] missing response field: data"

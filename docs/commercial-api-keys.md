@@ -39,7 +39,7 @@ GET /api/v1/billing/qanlo/callback
 GET /api/v1/billing/status
 ```
 
-其中 `POST /api/v1/keys` 是客户自助创建本项目 API Key 的入口；返回里的完整密钥只出现一次。其余客户侧状态、充值和用量接口需要 `X-API-Key`。
+其中 `POST /api/v1/keys` 仅保留路由兼容，公开环境已禁止自助创建 API Key，会返回 403，避免未充值用户直接生成可用 Key。Key 必须由管理员接口 `POST /api/v1/admin/api-keys` 或受信任的 Qanlo 开通链路发放；返回里的完整密钥只出现一次。其余客户侧状态、充值和用量接口需要 `X-API-Key`。
 
 ## OpenAPI 规格
 
@@ -111,12 +111,13 @@ POST /api/v1/admin/enrichment/review-items/:id/reject
 
 ## 创建 API Key
 
-客户自助创建：
+公开客户自助创建已禁用：
 
 ```bash
 curl -X POST "http://localhost:1279/api/v1/keys" \
   -H "Content-Type: application/json" \
   -d '{"name":"demo customer","tier":"trial"}'
+# HTTP 403: public api key creation is disabled
 ```
 
 查看当前 Key：

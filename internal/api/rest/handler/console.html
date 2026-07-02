@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 诗词知识库 API 控制台</title>
+  <style>
+    :root {
+      --ink: #211814;
+      --muted: #7a6d61;
+      --paper: #fffaf0;
+      --line: #dfcbb0;
+      --red: #a8322a;
+      --red-2: #c64a3f;
+      --gold: #c49758;
+      --green: #1f9d68;
+      --shadow: 0 18px 55px rgba(83, 48, 18, .10);
+      --song: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink);
+      background: radial-gradient(circle at 20% 5%, #fffaf0 0, #f6ead7 42%, #efe1cd 100%);
+      overflow: hidden;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    .app { display: grid; grid-template-columns: clamp(360px, 32vw, 560px) minmax(0, 1fr); height: 100vh; }
+    .sidebar { height: 100vh; overflow: auto; border-right: 1px solid var(--line); background: rgba(255,250,240,.92); padding: 22px 28px 28px; }
+    .main { height: 100vh; overflow: auto; padding: 24px 34px 82px; }
+    .brand { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
+    .logo { width: 58px; height: 58px; border-radius: 21px; background: var(--red); color: #fff; display: grid; place-items: center; font: 800 28px var(--song); box-shadow: 0 10px 26px rgba(168,50,42,.22); }
+    h1, h2, h3, p { margin: 0; }
+    .brand h1 { font-size: 26px; line-height: 1.1; letter-spacing: .01em; }
+    .brand p, .hint, .tiny { color: var(--muted); }
+    .nav-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .tab, .pill, .btn, .link-btn {
+      border: 1px solid var(--line);
+      background: #fffaf2;
+      border-radius: 999px;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--ink);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 800;
+    }
+    .tab.active, .btn.primary { background: linear-gradient(135deg, var(--red), var(--red-2)); border-color: transparent; color: #fff; }
+    .card { background: rgba(255,250,240,.78); border: 1px solid var(--line); border-radius: 24px; padding: 17px 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
+    .card-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .card-title h2 { font-size: 19px; }
+    .status { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--green); background: #e8f6ec; border: 1px solid #a7dcb7; border-radius: 999px; padding: 5px 10px; font-weight: 800; white-space: nowrap; }
+    .status.off { color: #8b5b16; background: #fff5df; border-color: #e5c98e; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+    label { display: block; font-size: 12px; color: #6c5b49; font-weight: 800; margin: 10px 0 6px; }
+    input, textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,253,247,.88); color: var(--ink); outline: none; padding: 10px 12px; }
+    textarea { resize: vertical; min-height: 82px; max-height: 128px; }
+    .key-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+    .icon-btn { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: #fffaf2; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .metric { border: 1px solid #eadac5; border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,.45); }
+    .metric b { display: block; font-size: 18px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 8px; }
+    .chip { border: 1px solid #e3cfb5; border-radius: 12px; background: rgba(255,253,247,.76); padding: 8px 14px; min-width: 76px; }
+    .chip.active { border-color: var(--red); color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #eadac5; margin-top: 14px; padding-top: 14px; }
+    .switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+    .switch input { display: none; }
+    .slider { position: absolute; inset: 0; border-radius: 999px; background: #d8c1a2; }
+    .slider:before { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .18s; }
+    .switch input:checked + .slider { background: var(--red); }
+    .switch input:checked + .slider:before { transform: translateX(20px); }
+    .btn { min-height: 42px; border-radius: 13px; }
+    .btn.ghost { background: #fff7ea; color: #2b2119; }
+    .btn.outline { background: transparent; }
+    .btn.danger { color: var(--red); border-color: #e6c7bf; }
+    .wide-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    .link-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .link-grid .link-btn { font-size: 12px; min-height: 44px; border-radius: 14px; background: #fffaf2; line-height: 1.3; }
+    .main-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    .main-head h1 { font-size: 24px; }
+    .top-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .workspace { display: grid; grid-template-columns: minmax(330px, .95fr) minmax(420px, 1.55fr); gap: 18px; }
+    .panel { background: rgba(255,250,240,.73); border: 1px solid var(--line); border-radius: 25px; box-shadow: var(--shadow); overflow: hidden; min-height: 500px; }
+    .poem-card { padding: 34px 36px; position: relative; background: linear-gradient(140deg, rgba(255,253,246,.95), rgba(251,241,224,.85)); min-height: 500px; display: flex; flex-direction: column; }
+    .badge { align-self: flex-start; border: 1px solid #efd8c3; border-radius: 999px; padding: 5px 11px; color: var(--red); font-size: 12px; background: #fffaf0; font-weight: 800; }
+    .poem-title { font-family: var(--song); font-size: 36px; line-height: 1.15; margin: 26px 0 8px; letter-spacing: .03em; }
+    .byline { font-weight: 800; color: #6f5a42; }
+    .poem-lines { font-family: var(--song); font-size: 27px; line-height: 2; letter-spacing: .08em; margin: 22px 0 20px; white-space: pre-line; }
+    .poem-card .bottom { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .seal { width: 48px; height: 48px; border: 1px solid #e7c5be; border-radius: 12px; display: grid; place-items: center; color: #c25446; background: rgba(255,244,235,.8); font-family: var(--song); }
+    .image-panel { display: grid; grid-template-rows: auto 1fr auto; }
+    .panel-head { padding: 17px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .panel-head h2 { font-size: 19px; }
+    .preview { min-height: 320px; display: grid; place-items: center; position: relative; overflow: hidden; background: #fffdf8; isolation: isolate; }
+    .preview:before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 75%, rgba(196,151,88,.10), transparent 36%), linear-gradient(180deg, rgba(255,255,255,.88), rgba(249,237,219,.45)); pointer-events: none; z-index: 0; }
+    .ink-bg { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .ink-bg .mountains {
+      position: absolute;
+      left: -4%;
+      right: -4%;
+      bottom: 18%;
+      height: 58%;
+      opacity: .38;
+      filter: blur(.6px);
+      background:
+        radial-gradient(ellipse at 12% 72%, rgba(85,91,88,.28) 0 17%, transparent 34%),
+        radial-gradient(ellipse at 28% 68%, rgba(83,91,88,.20) 0 20%, transparent 39%),
+        radial-gradient(ellipse at 47% 63%, rgba(72,79,78,.26) 0 22%, transparent 43%),
+        radial-gradient(ellipse at 69% 67%, rgba(70,78,75,.22) 0 19%, transparent 38%),
+        radial-gradient(ellipse at 90% 61%, rgba(72,80,76,.24) 0 23%, transparent 44%),
+        linear-gradient(to top, rgba(85,91,88,.13), transparent 48%);
+    }
+    .ink-bg .river {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 42%;
+      opacity: .25;
+      background:
+        radial-gradient(ellipse at 42% 22%, rgba(112,118,116,.18) 0 15%, transparent 42%),
+        radial-gradient(ellipse at 68% 38%, rgba(112,118,116,.15) 0 10%, transparent 36%),
+        repeating-linear-gradient(172deg, transparent 0 22px, rgba(105,111,108,.12) 23px 24px, transparent 25px 54px);
+    }
+    .ink-bg .boat {
+      position: absolute;
+      right: 18%;
+      bottom: 26%;
+      width: 108px;
+      height: 28px;
+      opacity: .34;
+      border-bottom: 4px solid #777b78;
+      border-radius: 0 0 58% 58%;
+      transform: rotate(-6deg) skewX(-18deg);
+    }
+    .ink-bg .boat:before {
+      content: "";
+      position: absolute;
+      left: 45px;
+      bottom: 12px;
+      width: 12px;
+      height: 32px;
+      border-radius: 999px 999px 0 0;
+      background: #777b78;
+      box-shadow: 16px 12px 0 -4px rgba(119,123,120,.9);
+    }
+    .ink-bg .boat:after {
+      content: "";
+      position: absolute;
+      right: -18px;
+      bottom: 16px;
+      width: 82px;
+      height: 2px;
+      background: rgba(100,105,102,.78);
+      transform: rotate(21deg);
+      transform-origin: left center;
+    }
+    .bamboo {
+      position: absolute;
+      right: 18px;
+      top: -18px;
+      width: 310px;
+      height: 172px;
+      opacity: .42;
+      transform: rotate(-8deg);
+    }
+    .bamboo:before {
+      content: "";
+      position: absolute;
+      right: 74px;
+      top: -8px;
+      width: 3px;
+      height: 184px;
+      border-radius: 999px;
+      background: linear-gradient(to bottom, rgba(70,78,75,.55), rgba(70,78,75,.08));
+      transform: rotate(45deg);
+      box-shadow: -28px 16px 0 -1px rgba(70,78,75,.20);
+    }
+    .bamboo i {
+      position: absolute;
+      display: block;
+      width: 76px;
+      height: 18px;
+      border-radius: 100% 0 100% 0;
+      background: linear-gradient(100deg, rgba(54,64,60,.46), rgba(54,64,60,.08));
+      transform-origin: right center;
+      filter: blur(.15px);
+    }
+    .bamboo i:nth-child(1) { right: 118px; top: 22px; transform: rotate(16deg); }
+    .bamboo i:nth-child(2) { right: 90px; top: 40px; transform: rotate(-22deg) scaleX(.92); }
+    .bamboo i:nth-child(3) { right: 145px; top: 58px; transform: rotate(29deg) scaleX(.86); }
+    .bamboo i:nth-child(4) { right: 58px; top: 74px; transform: rotate(-14deg) scaleX(1.08); }
+    .bamboo i:nth-child(5) { right: 134px; top: 96px; transform: rotate(11deg) scaleX(.78); }
+    .bamboo i:nth-child(6) { right: 34px; top: 111px; transform: rotate(-28deg) scaleX(.82); }
+    .bamboo i:nth-child(7) { right: 165px; top: 122px; transform: rotate(34deg) scaleX(.7); }
+    .bamboo i:nth-child(8) { right: 84px; top: 136px; transform: rotate(-7deg) scaleX(.72); }
+    .empty-img { position: relative; z-index: 1; text-align: center; color: #6f6154; }
+    .empty-img .pic { width: 74px; height: 74px; border: 2px solid var(--gold); border-radius: 22px; display: grid; place-items: center; margin: 0 auto 14px; font: 700 34px var(--song); color: #bf7f28; }
+    .prompt-box { border-top: 1px solid var(--line); padding: 16px 22px; background: rgba(255,250,240,.72); }
+    .prompt-box textarea { min-height: 86px; max-height: 128px; }
+    .small-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .recommend { margin-top: 18px; }
+    .recommend-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .rec-list { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; }
+    .rec { border: 1px solid var(--line); border-radius: 12px; background: rgba(255,250,240,.75); padding: 10px 12px; min-height: 64px; text-align: left; }
+    .rec b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fixed-bar { position: fixed; right: 28px; bottom: 18px; display: flex; gap: 12px; z-index: 5; }
+    .fixed-bar .btn { min-width: 150px; }
+    #toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 20px); opacity: 0; background: #211814; color: #fff; border-radius: 999px; padding: 10px 18px; box-shadow: 0 20px 50px rgba(0,0,0,.25); transition: .18s; pointer-events: none; z-index: 20; }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .hidden { display: none !important; }
+    .watermark { position: absolute; right: 28px; top: 28px; color: rgba(168,50,42,.08); font: 900 120px var(--song); pointer-events: none; }
+    .soft-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .counter { text-align: right; font-size: 12px; color: #9a8978; margin-top: 3px; }
+    @media (max-width: 1050px) {
+      body { overflow: auto; }
+      .app { display: block; height: auto; }
+      .sidebar, .main { height: auto; overflow: visible; }
+      .workspace { grid-template-columns: 1fr; }
+      .rec-list { grid-template-columns: repeat(2, 1fr); }
+      .fixed-bar { position: static; margin: 14px 28px 22px; }
+    }
+    @media (max-width: 720px) {
+      .sidebar, .main { padding: 18px; }
+      .key-row, .form-grid, .metrics, .wide-actions, .link-grid { grid-template-columns: 1fr; }
+      .main-head { display: block; }
+      .top-actions { margin-top: 12px; }
+      .poem-lines { font-size: 23px; }
+      .poem-title { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <header class="brand">
+      <div class="logo">诗</div>
+      <div>
+        <h1>AI 诗词知识库 API 控制台</h1>
+        <p>诗画工坊</p>
+      </div>
+    </header>
+    <nav class="nav-tabs" aria-label="theme">
+      <button class="tab active" type="button">宣纸</button>
+      <button class="tab" type="button">青玉</button>
+      <button class="tab" type="button">夜色</button>
+    </nav>
+
+    <section class="card" id="keyCard">
+      <div class="card-title">
+        <h2>API Key 与额度</h2>
+        <span class="status off" id="keyStatus"><i class="dot"></i>未配置</span>
+      </div>
+      <label for="apiKey">当前 Key</label>
+      <div class="key-row">
+        <input id="apiKey" type="password" placeholder="填写已开通的 cp_live_xxx" autocomplete="off" />
+        <button class="icon-btn" type="button" id="saveKey" title="保存到本机">存</button>
+        <button class="icon-btn" type="button" id="copyKey" title="复制 Key">⧉</button>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span class="tiny">今日用量</span><b id="todayUsage">--</b></div>
+        <div class="metric"><span class="tiny">每日额度</span><b id="dailyLimit">--</b></div>
+      </div>
+      <p class="soft-note">本页不会自动创建免费 Key。请先在 Qanlo 充值/开通，或由管理员发放 Key 后再填写。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <h2>自然语言搜索诗词</h2>
+        <span class="status">AI 知识库召回</span>
+      </div>
+      <label for="query">直接说你想找什么</label>
+      <textarea id="query" maxlength="200" placeholder="例如：找中秋月亮诗句">找适合文旅山水宣传的诗</textarea>
+      <div class="counter"><span id="qCount">0</span> / 200</div>
+      <label>热门场景</label>
+      <div class="chips" id="chips"></div>
+      <div class="switch-row">
+        <div>
+          <b>同时准备意境图 Prompt</b>
+          <p class="tiny">按诗句意象、氛围、时令和色彩生成可复制提示词。</p>
+        </div>
+        <label class="switch"><input type="checkbox" id="promptToggle" checked><span class="slider"></span></label>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label for="style">图像风格</label>
+          <select id="style"><option>古风水墨</option><option>宋画工笔</option><option>新中式海报</option><option>小红书封面</option></select>
+        </div>
+        <div>
+          <label for="ratio">画面比例</label>
+          <select id="ratio"><option>1:1 方图</option><option>3:4 竖图</option><option>16:9 横图</option></select>
+        </div>
+      </div>
+      <div class="wide-actions">
+        <button class="btn primary" id="searchBtn" type="button">🔍 搜索诗词</button>
+        <button class="btn ghost" id="promptBtn" type="button">▧ 生成图片提示词</button>
+      </div>
+      <p class="soft-note">“生成图片提示词”只生成 Prompt，不消耗生图额度；真图请复制到 qanlo.com 在线生图工作台。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <h2>Qanlo 绑定 / 充值</h2>
+        <span class="status off" id="billingStatus"><i class="dot"></i>待查询</span>
+      </div>
+      <div class="link-grid">
+        <button class="link-btn" id="bindQanlo" type="button">绑定 Qanlo Agent Key<br><span class="tiny">安全连接</span></button>
+        <button class="link-btn" id="rechargeQanlo" type="button">查看套餐与余额<br><span class="tiny">灵活充值</span></button>
+        <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
+      </div>
+    </section>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /docs /pricing</div>
+  </aside>
+
+  <main class="main">
+    <header class="main-head">
+      <div>
+        <h1>诗词结果</h1>
+        <p class="hint">左侧负责输入、额度、充值和 Prompt；右侧展示诗词、候选结果和生图提示词。</p>
+      </div>
+      <div class="top-actions">
+        <a class="pill" href="pricing">价格套餐</a>
+        <a class="pill" href="docs">开发文档</a>
+        <button class="pill" id="queryStatus" type="button">等待查询</button>
+      </div>
+    </header>
+    <section class="workspace">
+      <article class="panel poem-card">
+        <span class="badge" id="poemType">示例预览</span>
+        <div class="watermark">诗</div>
+        <h2 class="poem-title" id="poemTitle">望江梅 · 闲梦远</h2>
+        <p class="byline" id="poemAuthor">五代 · 李煜</p>
+        <div class="poem-lines" id="poemContent">闲梦远，南国正芳春。
+船上管弦江面绿，满城飞絮滚轻尘。
+忙杀看花人。</div>
+        <div class="bottom">
+          <div class="small-actions">
+            <button class="btn ghost" id="copyPoem" type="button">复制诗词</button>
+            <button class="btn danger" id="clearResult" type="button">清空结果</button>
+          </div>
+          <div class="seal">诗</div>
+        </div>
+      </article>
+      <article class="panel image-panel">
+        <div class="panel-head">
+          <div>
+            <h2>意境图预览 / Prompt</h2>
+            <p class="tiny">可选择生图，也可只查诗。</p>
+          </div>
+          <span class="status">意境 Prompt</span>
+        </div>
+        <div class="preview" id="preview">
+          <div class="ink-bg" aria-hidden="true">
+            <div class="mountains"></div>
+            <div class="river"></div>
+            <div class="boat"></div>
+            <div class="bamboo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="empty-img">
+            <div class="pic">画</div>
+            <h2>尚未生成图片</h2>
+            <p>输入诗词并点击「生成图片提示词」后，<br>可复制到 qanlo.com 在线生图工作台。</p>
+          </div>
+        </div>
+        <div class="prompt-box">
+          <label for="promptOut">图片提示词 Prompt</label>
+          <textarea id="promptOut" readonly>古风水墨风格，江南春景，绿水轻舟，远山薄雾，柳枝拂水，意境空灵，留白构图，中国古典水墨画</textarea>
+          <div class="small-actions">
+            <button class="btn ghost" id="copyPrompt" type="button">复制提示词</button>
+            <button class="btn outline" id="openImage" type="button">打开在线生图</button>
+          </div>
+        </div>
+      </article>
+    </section>
+    <section class="recommend">
+      <div class="recommend-head">
+        <h2>相关推荐</h2>
+        <button class="pill" id="shuffleRecs" type="button">换一批 ↻</button>
+      </div>
+      <div class="rec-list" id="recs"></div>
+    </section>
+  </main>
+</div>
+<div class="fixed-bar">
+  <button class="btn ghost" id="copyPromptBottom" type="button">复制提示词 ⧉</button>
+  <button class="btn primary" id="openImageBottom" type="button">进入在线生图 ↘</button>
+</div>
+<div id="toast"></div>
+<script>
+(function () {
+  var scenarios = [
+    { label: "毕业送别", q: "找适合毕业离别的诗句" },
+    { label: "中秋月亮", q: "找中秋月亮诗句" },
+    { label: "思乡怀人", q: "找表达思乡怀人的诗" },
+    { label: "边塞战争", q: "找边塞战争诗句" },
+    { label: "春日海报", q: "找适合春天海报的诗句" },
+    { label: "山水文旅", q: "找适合文旅山水宣传的诗" }
+  ];
+  var sample = {
+    title: "望江梅 · 闲梦远",
+    author: { name: "李煜" },
+    dynasty: { name: "五代" },
+    type: { name: "词" },
+    content: ["闲梦远，南国正芳春。", "船上管弦江面绿，满城飞絮滚轻尘。", "忙杀看花人。"]
+  };
+  var state = { poems: [], activeScenario: "山水文旅", current: sample };
+  function $(id) { return document.getElementById(id); }
+  function appBase() {
+    var p = window.location.pathname || "/";
+    var m = p.match(/^(.*)\/(?:console|docs|pricing)\/?$/);
+    return m ? (m[1] || "") : "";
+  }
+  var BASE = appBase();
+  function apiURL(path) { return path && path.charAt(0) === "/" ? BASE + path : path; }
+  function apiKey() { return ($("apiKey").value || "").trim(); }
+  function toast(msg) {
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2800);
+  }
+  function normalizeLines(content) {
+    if (Array.isArray(content)) return content.map(String);
+    if (!content) return [];
+    var s = String(content);
+    try {
+      var arr = JSON.parse(s);
+      if (Array.isArray(arr)) return arr.map(String);
+    } catch (e) {}
+    return s.split(/\n+/).filter(Boolean);
+  }
+  function poemAuthor(poem) {
+    var a = poem && poem.author && poem.author.name || "";
+    var d = poem && poem.dynasty && poem.dynasty.name || "";
+    return [d, a].filter(Boolean).join(" · ") || "作者待考";
+  }
+  function poemType(poem) { return poem && poem.type && poem.type.name || "诗词结果"; }
+  function setKeyStatus(on, text) {
+    var el = $("keyStatus");
+    el.classList.toggle("off", !on);
+    el.innerHTML = '<i class="dot"></i>' + text;
+  }
+  function saveKey() {
+    var key = apiKey();
+    if (key) {
+      localStorage.setItem("poetry_api_key", key);
+      toast("Key 已保存到本机");
+      refreshStatus();
+    } else {
+      localStorage.removeItem("poetry_api_key");
+      setKeyStatus(false, "未配置");
+      $("todayUsage").textContent = "--";
+      $("dailyLimit").textContent = "--";
+      toast("已清除本机 Key");
+    }
+  }
+  async function fetchJSON(path, opt) {
+    opt = opt || {};
+    var res = await fetch(apiURL(path), opt);
+    var text = await res.text();
+    var json = {};
+    try { json = text ? JSON.parse(text) : {}; } catch (e) { json = { raw: text }; }
+    if (!res.ok) throw new Error((json && json.error) || ("HTTP " + res.status));
+    return json;
+  }
+  function requireKey() {
+    var key = apiKey();
+    if (!key) {
+      toast("请先填写已开通的 Key；本页不会自动创建免费 Key");
+      throw new Error("missing api key");
+    }
+    localStorage.setItem("poetry_api_key", key);
+    return key;
+  }
+  async function refreshStatus() {
+    var key = apiKey();
+    if (!key) {
+      setKeyStatus(false, "未配置");
+      return;
+    }
+    try {
+      var cur = await fetchJSON("/api/v1/keys/current", { headers: { "X-API-Key": key } });
+      var data = cur.data || cur;
+      setKeyStatus(true, "已绑定");
+      $("todayUsage").textContent = data.today_usage == null ? "0" : data.today_usage;
+      $("dailyLimit").textContent = data.daily_limit === 0 ? "不限" : (data.daily_limit || "--");
+      try {
+        var bill = await fetchJSON("/api/v1/billing/status", { headers: { "X-API-Key": key } });
+        var q = (bill.data && bill.data.qanlo) || {};
+        var linked = q.status === "linked" || q.has_qanlo_key;
+        $("billingStatus").classList.toggle("off", !linked);
+        $("billingStatus").innerHTML = '<i class="dot"></i>' + (linked ? "已绑定" : "可配置");
+      } catch (e) {
+        $("billingStatus").classList.add("off");
+        $("billingStatus").innerHTML = '<i class="dot"></i>待配置';
+      }
+    } catch (e) {
+      setKeyStatus(false, "Key 无效");
+      $("todayUsage").textContent = "--";
+      $("dailyLimit").textContent = "--";
+    }
+  }
+  function renderPoem(poem) {
+    poem = poem || sample;
+    state.current = poem;
+    $("poemType").textContent = poemType(poem);
+    $("poemTitle").textContent = poem.title || "未命名诗词";
+    $("poemAuthor").textContent = poemAuthor(poem);
+    $("poemContent").textContent = normalizeLines(poem.content).join("\n");
+    buildPrompt();
+  }
+  function promptText(poem) {
+    poem = poem || state.current || sample;
+    var lines = normalizeLines(poem.content).slice(0, 3).join("，");
+    return $("style").value + "，" + $("ratio").value + "，以《" + (poem.title || "诗词") + "》为意境，画面包含：" + lines + "。中国古典审美，留白构图，柔和光影，细腻纸张肌理，无文字水印。";
+  }
+  function buildPrompt() {
+    var text = promptText(state.current || sample);
+    $("promptOut").value = text;
+    return text;
+  }
+  function escapeHTML(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function renderRecs(poems) {
+    var list = (poems && poems.length ? poems : [
+      sample,
+      { title: "春江花月夜", author: { name: "张若虚" }, dynasty: { name: "唐" }, content: ["春江潮水连海平，海上明月共潮生。"] },
+      { title: "江南春", author: { name: "杜牧" }, dynasty: { name: "唐" }, content: ["千里莺啼绿映红，水村山郭酒旗风。"] },
+      { title: "早春呈水部张十八员外", author: { name: "韩愈" }, dynasty: { name: "唐" }, content: ["天街小雨润如酥，草色遥看近却无。"] },
+      { title: "渡荆门送别", author: { name: "李白" }, dynasty: { name: "唐" }, content: ["山随平野尽，江入大荒流。"] }
+    ]).slice(0, 5);
+    $("recs").innerHTML = list.map(function (p, i) {
+      return '<button class="rec" data-i="' + i + '"><b>' + escapeHTML(p.title || "诗词") + '</b><span class="tiny">' + escapeHTML(poemAuthor(p)) + '</span></button>';
+    }).join("");
+    Array.prototype.forEach.call($("recs").querySelectorAll(".rec"), function (btn) {
+      btn.onclick = function () {
+        renderPoem(list[Number(btn.dataset.i)]);
+        toast("已切换推荐诗词");
+      };
+    });
+  }
+  async function searchPoems() {
+    var q = ($("query").value || "").trim();
+    if (!q) {
+      toast("请先输入搜索需求");
+      return;
+    }
+    var key = requireKey();
+    $("queryStatus").textContent = "查询中...";
+    try {
+      var json = await fetchJSON("/api/v1/knowledge/recall?q=" + encodeURIComponent(q) + "&page_size=5", { headers: { "X-API-Key": key } });
+      var poems = Array.isArray(json.data) ? json.data : [];
+      state.poems = poems;
+      if (poems.length) {
+        renderPoem(poems[0]);
+        renderRecs(poems);
+        $("queryStatus").textContent = "已返回结果";
+        toast("已返回 " + poems.length + " 条结果");
+      } else {
+        $("queryStatus").textContent = "无结果";
+        toast("没有匹配结果，换个关键词试试");
+      }
+      refreshStatus();
+    } catch (e) {
+      $("queryStatus").textContent = "查询失败";
+      toast(e.message || "查询失败");
+    }
+  }
+  async function bindQanlo() {
+    var key = requireKey();
+    try {
+      var json = await fetchJSON("/api/v1/billing/qanlo/provision", { method: "POST", headers: { "X-API-Key": key } });
+      var url = (json.data && json.data.connect_url) || json.connect_url;
+      if (url) {
+        window.open(url, "_blank", "noopener");
+        toast("已打开 Qanlo 绑定页");
+      } else {
+        toast("未返回绑定地址");
+      }
+    } catch (e) {
+      toast(e.message || "绑定失败");
+    }
+  }
+  async function rechargeQanlo() {
+    var key = requireKey();
+    try {
+      var json = await fetchJSON("/api/v1/billing/qanlo/recharge-session", { method: "POST", headers: { "X-API-Key": key } });
+      var url = (json.data && json.data.recharge_url) || json.recharge_url;
+      if (url) {
+        window.open(url, "_blank", "noopener");
+        toast("已打开充值页");
+      } else {
+        toast("未返回充值地址");
+      }
+    } catch (e) {
+      toast(e.message || "充值失败");
+    }
+  }
+  function copyText(text, msg) {
+    if (!navigator.clipboard) {
+      toast("浏览器不支持一键复制，请手动复制");
+      return;
+    }
+    navigator.clipboard.writeText(text).then(function () { toast(msg || "已复制"); }, function () { toast("复制失败，请手动复制"); });
+  }
+  function openImage() { window.open("/image-playground", "_blank", "noopener"); }
+  function renderChips() {
+    var box = $("chips");
+    box.innerHTML = scenarios.map(function (s) {
+      return '<button class="chip ' + (s.label === state.activeScenario ? "active" : "") + '" data-label="' + s.label + '" type="button">' + s.label + '</button>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll(".chip"), function (btn) {
+      btn.onclick = function () {
+        state.activeScenario = btn.dataset.label;
+        var item = scenarios.find(function (s) { return s.label === state.activeScenario; });
+        $("query").value = item ? item.q : "";
+        updateCounter();
+        renderChips();
+      };
+    });
+  }
+  function updateCounter() { $("qCount").textContent = ($("query").value || "").length; }
+  $("saveKey").onclick = saveKey;
+  $("copyKey").onclick = function () { if (apiKey()) copyText(apiKey(), "Key 已复制"); };
+  $("apiKey").addEventListener("change", saveKey);
+  $("query").addEventListener("input", updateCounter);
+  $("searchBtn").onclick = searchPoems;
+  $("promptBtn").onclick = function () { buildPrompt(); toast("已生成图片提示词，未消耗生图额度"); };
+  $("copyPoem").onclick = function () { copyText($("poemTitle").textContent + "\n" + $("poemAuthor").textContent + "\n" + $("poemContent").textContent, "诗词已复制"); };
+  $("clearResult").onclick = function () { renderPoem(sample); $("queryStatus").textContent = "等待查询"; toast("结果已重置为示例"); };
+  $("copyPrompt").onclick = function () { copyText($("promptOut").value, "提示词已复制"); };
+  $("copyPromptBottom").onclick = $("copyPrompt").onclick;
+  $("openImage").onclick = openImage;
+  $("openImageBottom").onclick = openImage;
+  $("bindQanlo").onclick = bindQanlo;
+  $("rechargeQanlo").onclick = rechargeQanlo;
+  $("shuffleRecs").onclick = function () { renderRecs(state.poems.slice().reverse()); toast("已换一批"); };
+  $("style").onchange = buildPrompt;
+  $("ratio").onchange = buildPrompt;
+  $("apiKey").value = localStorage.getItem("poetry_api_key") || "";
+  renderChips();
+  updateCounter();
+  renderPoem(sample);
+  renderRecs([]);
+  if (apiKey()) refreshStatus();
+})();
+</script>
+</body>
+</html>
