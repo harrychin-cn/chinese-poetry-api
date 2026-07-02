@@ -42,6 +42,16 @@ qanlo:
   return_url: "http://localhost:1279/api/v1/billing/qanlo/callback"
   callback_secret: ""  # Optional: set QANLO_CALLBACK_SECRET to protect callback
 
+image:
+  # Optional server-side image generation for /api/v1/images/generate.
+  # Leave api_key empty to disable direct image generation without consuming quota.
+  api_key: ""  # Set IMAGE_API_KEY in production
+  base_url: "https://qanlo.com/openai/v1"
+  model: "gpt-image-2"
+  quality: "high"
+  output_format: "png"
+  timeout_seconds: 180
+
 graphql:
   playground: false  # Enable GraphQL Playground (set to true for development)
   introspection: true

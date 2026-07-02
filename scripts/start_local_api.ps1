@@ -78,7 +78,13 @@ $qanloEnvArgs = @()
     "QANLO_AGENT_MODEL",
     "QANLO_RETURN_URL",
     "QANLO_AGENT_RETURN_URL",
-    "QANLO_CALLBACK_SECRET"
+    "QANLO_CALLBACK_SECRET",
+    "IMAGE_API_KEY",
+    "IMAGE_BASE_URL",
+    "IMAGE_MODEL",
+    "IMAGE_QUALITY",
+    "IMAGE_OUTPUT_FORMAT",
+    "IMAGE_TIMEOUT_SECONDS"
 ) | ForEach-Object {
     $value = [Environment]::GetEnvironmentVariable($_)
     if (-not [string]::IsNullOrWhiteSpace($value)) {

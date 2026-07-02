@@ -29,6 +29,7 @@ tags:
   - name: Health
   - name: Poetry
   - name: Knowledge
+  - name: Images
   - name: Client Keys
   - name: Billing
   - name: Usage
@@ -310,6 +311,38 @@ paths:
           $ref: "#/components/responses/OK"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/images/generate:
+    post:
+      tags:
+        - Images
+      summary: Generate a poetry mood image in the console
+      operationId: generatePoetryImage
+      description: Requires X-API-Key. The server calls the configured OpenAI-compatible image gateway with IMAGE_API_KEY; public clients never receive that upstream key.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                size:
+                  type: string
+                  enum: ["1024x1024", "1024x1536", "1536x1024", "2048x1152"]
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/authors:
     get:
       tags:

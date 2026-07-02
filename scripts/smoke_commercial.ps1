@@ -371,7 +371,8 @@ $docsPage = Invoke-SmokeTextRequest -Method GET -Path "/docs" -Step "docs page" 
     'href="pricing"',
     'href="openapi.yaml"',
     "POST /api/v1/keys",
-    "GET /api/v1/knowledge/recall"
+    "GET /api/v1/knowledge/recall",
+    "POST /api/v1/images/generate"
 )
 $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "openapi yaml" -Contains @(
     "openapi: 3.0.3",
@@ -379,6 +380,7 @@ $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "open
     "/api/v1/keys:",
     "/api/v1/billing/status:",
     "/api/v1/knowledge/recall:",
+    "/api/v1/images/generate:",
     "X-API-Key",
     "X-Admin-Token"
 )
@@ -388,7 +390,9 @@ $consolePage = Invoke-SmokeTextRequest -Method GET -Path "/console" -Step "conso
     "本页不会自动创建免费 Key",
     "Qanlo 绑定 / 充值",
     "AI 知识库召回",
-    "进入在线生图"
+    "生成图片",
+    "在线生图备用",
+    "/api/v1/images/generate"
 )
 $pricingPage = Invoke-SmokeTextRequest -Method GET -Path "/pricing" -Step "pricing page" -Contains @(
     "AI 诗词知识库 API 价格套餐",

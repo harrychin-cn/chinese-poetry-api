@@ -64,6 +64,7 @@ GET /api/v1/poems/query
 GET /api/v1/poems/search/fulltext
 GET /api/v1/knowledge/recall
 POST /api/v1/knowledge/batch
+POST /api/v1/images/generate
 GET /api/v1/usage/daily
 GET /api/v1/usage/endpoints
 GET /api/v1/usage/queries
@@ -202,6 +203,30 @@ curl -X POST "http://localhost:1279/api/v1/knowledge/batch" \
   -H "X-API-Key: cp_live_xxx" \
   -H "Content-Type: application/json" \
   -d '{"queries":[{"id":"moon","q":"中秋月亮"},{"id":"farewell","q":"毕业离别"}],"page_size":3}'
+```
+
+## 诗词意境图生成
+
+控制台右侧图片区可直接调用：
+
+```bash
+curl -X POST "http://localhost:1279/api/v1/images/generate" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"古风水墨，江南春景，轻舟远山，留白构图","size":"1024x1024"}'
+```
+
+这个接口必须先校验本地 `X-API-Key`，不会公开创建免费 Key。服务器只有在配置了 `IMAGE_API_KEY` 后才会调用上游 Qanlo 生图网关；未配置时返回 `503 image_config_missing`，不消耗生图额度。
+
+可选服务端配置：
+
+```bash
+IMAGE_API_KEY=sk-...
+IMAGE_BASE_URL=https://qanlo.com/openai/v1
+IMAGE_MODEL=gpt-image-2
+IMAGE_QUALITY=high
+IMAGE_OUTPUT_FORMAT=png
+IMAGE_TIMEOUT_SECONDS=180
 ```
 
 ## 查看 API Key 与今日用量

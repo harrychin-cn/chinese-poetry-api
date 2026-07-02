@@ -94,6 +94,13 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 			v1.POST("/knowledge/batch", knowledgeHandler.BatchRecall)
 		}
 
+		imageHandler := handler.NewImageHandler(repo, cfg.Image)
+		if cfg.APIAuth.Enabled {
+			v1.POST("/images/generate", withAPIKey(middleware.APIKeyAuthNoUsage(repo), imageHandler.Generate)...)
+		} else {
+			v1.POST("/images/generate", imageHandler.Generate)
+		}
+
 		// Author routes
 		authorHandler := handler.NewAuthorHandler(repo)
 		v1.GET("/authors", authorHandler.ListAuthors)

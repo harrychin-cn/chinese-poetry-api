@@ -18,6 +18,7 @@ type Config struct {
 	Abuse     AbuseConfig     `mapstructure:"abuse_protection"`
 	APIAuth   APIAuthConfig   `mapstructure:"api_auth"`
 	Qanlo     QanloConfig     `mapstructure:"qanlo"`
+	Image     ImageConfig     `mapstructure:"image"`
 	GraphQL   GraphQLConfig   `mapstructure:"graphql"`
 	Search    SearchConfig    `mapstructure:"search"`
 }
@@ -76,6 +77,16 @@ type QanloConfig struct {
 	AgentModel     string `mapstructure:"agent_model"`
 	ReturnURL      string `mapstructure:"return_url"`
 	CallbackSecret string `mapstructure:"callback_secret"`
+}
+
+// ImageConfig holds optional server-side image generation gateway settings.
+type ImageConfig struct {
+	APIKey         string `mapstructure:"api_key"`
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	Quality        string `mapstructure:"quality"`
+	OutputFormat   string `mapstructure:"output_format"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
 // GraphQLConfig holds GraphQL configuration
@@ -150,6 +161,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("qanlo.agent_model", "deepseek-v4-flash")
 	v.SetDefault("qanlo.return_url", "http://localhost:1279/api/v1/billing/qanlo/callback")
 	v.SetDefault("qanlo.callback_secret", "")
+	v.SetDefault("image.api_key", "")
+	v.SetDefault("image.base_url", "https://qanlo.com/openai/v1")
+	v.SetDefault("image.model", "gpt-image-2")
+	v.SetDefault("image.quality", "high")
+	v.SetDefault("image.output_format", "png")
+	v.SetDefault("image.timeout_seconds", 180)
 	v.SetDefault("graphql.playground", false)
 	v.SetDefault("graphql.introspection", true)
 	v.SetDefault("graphql.complexity_limit", 1000)
@@ -268,6 +285,28 @@ func bindEnvVars(v *viper.Viper) {
 		v.Set("qanlo.callback_secret", secret)
 	}
 
+	// Optional image generation gateway. The API key stays server-side only.
+	if apiKey := os.Getenv("IMAGE_API_KEY"); apiKey != "" {
+		v.Set("image.api_key", apiKey)
+	}
+	if baseURL := os.Getenv("IMAGE_BASE_URL"); baseURL != "" {
+		v.Set("image.base_url", baseURL)
+	}
+	if model := os.Getenv("IMAGE_MODEL"); model != "" {
+		v.Set("image.model", model)
+	}
+	if quality := os.Getenv("IMAGE_QUALITY"); quality != "" {
+		v.Set("image.quality", quality)
+	}
+	if outputFormat := os.Getenv("IMAGE_OUTPUT_FORMAT"); outputFormat != "" {
+		v.Set("image.output_format", outputFormat)
+	}
+	if timeoutSeconds := os.Getenv("IMAGE_TIMEOUT_SECONDS"); timeoutSeconds != "" {
+		if value, err := strconv.Atoi(timeoutSeconds); err == nil {
+			v.Set("image.timeout_seconds", value)
+		}
+	}
+
 	// Database connection pool
 	if maxOpen := os.Getenv("DB_MAX_OPEN_CONNS"); maxOpen != "" {
 		if m, err := strconv.Atoi(maxOpen); err == nil {
@@ -341,6 +380,16 @@ func (c *Config) Validate() error {
 
 	if strings.TrimSpace(c.Qanlo.ReturnURL) == "" {
 		return fmt.Errorf("qanlo return_url cannot be empty")
+	}
+
+	if strings.TrimSpace(c.Image.BaseURL) == "" {
+		return fmt.Errorf("image base_url cannot be empty")
+	}
+	if strings.TrimSpace(c.Image.Model) == "" {
+		return fmt.Errorf("image model cannot be empty")
+	}
+	if c.Image.TimeoutSeconds <= 0 {
+		return fmt.Errorf("image timeout_seconds must be positive")
 	}
 
 	return nil

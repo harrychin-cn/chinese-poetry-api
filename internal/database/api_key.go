@@ -233,6 +233,24 @@ func (r *Repository) AuthenticateAndRecordAPIKey(rawKey string) (*APIKey, int, e
 	return key, usage, nil
 }
 
+// RecordAPIKeyUsage increments today's usage for an already validated API key.
+func (r *Repository) RecordAPIKeyUsage(key *APIKey) (int, error) {
+	if key == nil {
+		return 0, ErrAPIKeyRequired
+	}
+
+	today := time.Now().UTC().Format("2006-01-02")
+	if err := r.incrementAPIKeyUsage(key.ID, today, key.DailyLimit); err != nil {
+		if errors.Is(err, ErrAPIQuotaExceeded) {
+			usage, _ := r.getAPIKeyUsageCount(key.ID, today)
+			return usage, err
+		}
+		return 0, err
+	}
+
+	return r.getAPIKeyUsageCount(key.ID, today)
+}
+
 // ValidateAPIKey validates a raw API key without incrementing usage.
 func (r *Repository) ValidateAPIKey(rawKey string) (*APIKey, error) {
 	rawKey = strings.TrimSpace(rawKey)
