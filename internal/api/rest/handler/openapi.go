@@ -334,10 +334,10 @@ paths:
                   type: string
                 size:
                   type: string
+                  enum: ["1024x1024", "1024x1536", "1536x1024", "2048x1152"]
                 image_api_key:
                   type: string
                   format: password
-                  enum: ["1024x1024", "1024x1536", "1536x1024", "2048x1152"]
       responses:
         "200":
           $ref: "#/components/responses/OK"
