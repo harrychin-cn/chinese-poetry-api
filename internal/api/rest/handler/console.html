@@ -95,7 +95,7 @@
     .badge { align-self: flex-start; border: 1px solid #efd8c3; border-radius: 999px; padding: 5px 11px; color: var(--red); font-size: 12px; background: #fffaf0; font-weight: 800; }
     .poem-title { font-family: var(--song); font-size: 36px; line-height: 1.15; margin: 26px 0 8px; letter-spacing: .03em; }
     .byline { font-weight: 800; color: #6f5a42; }
-    .poem-lines { font-family: var(--song); font-size: 27px; line-height: 2; letter-spacing: .08em; margin: 22px 0 20px; white-space: pre-line; }
+    .poem-lines { font-family: var(--song); font-size: 27px; line-height: 2; letter-spacing: .08em; margin: 22px 0 20px; white-space: pre-line; overflow: hidden; }
     .poem-card .bottom { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .seal { width: 48px; height: 48px; border: 1px solid #e7c5be; border-radius: 12px; display: grid; place-items: center; color: #c25446; background: rgba(255,244,235,.8); font-family: var(--song); }
     .image-panel { display: grid; grid-template-rows: auto 1fr auto; }
@@ -526,6 +526,7 @@
     $("poemTitle").textContent = poem.title || "未命名诗词";
     $("poemAuthor").textContent = poemAuthor(poem);
     $("poemContent").textContent = normalizeLines(poem.content).join("\n");
+    schedulePoemFit();
     buildPrompt();
   }
   function promptText(poem) {
@@ -547,6 +548,54 @@
   function escapeHTML(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function applyPoemScale(bodySize, titleSize, lineHeight) {
+    var content = $("poemContent");
+    var title = $("poemTitle");
+    var letterSpacing = Math.max(0, .08 - (27 - bodySize) * .006);
+    var compactTitle = titleSize <= 28;
+    var contentMargin = bodySize <= 14 ? 8 : (bodySize <= 18 ? 12 : 22);
+    title.style.fontSize = titleSize + "px";
+    title.style.lineHeight = compactTitle ? "1.08" : "1.15";
+    title.style.margin = compactTitle ? "14px 0 6px" : "26px 0 8px";
+    content.style.fontSize = bodySize + "px";
+    content.style.lineHeight = String(lineHeight);
+    content.style.letterSpacing = letterSpacing + "em";
+    content.style.margin = contentMargin + "px 0 " + Math.max(8, contentMargin - 2) + "px";
+  }
+  function fitPoemToCard() {
+    var card = $("poemContent").closest(".poem-card");
+    var content = $("poemContent");
+    var title = $("poemTitle");
+    var bottom = card && card.querySelector(".bottom");
+    if (!card || !content || !title || !bottom) return;
+
+    content.style.maxHeight = "";
+    applyPoemScale(27, 36, 2);
+
+    var titleSizes = [36, 34, 32, 30, 28, 26, 24];
+    var lineHeights = [2, 1.82, 1.66, 1.5, 1.36, 1.24, 1.14, 1.08];
+    var best = { body: 10, title: 24, line: 1.08, max: 120 };
+    for (var bodySize = 27; bodySize >= 10; bodySize--) {
+      for (var li = 0; li < lineHeights.length; li++) {
+        for (var ti = 0; ti < titleSizes.length; ti++) {
+          applyPoemScale(bodySize, titleSizes[ti], lineHeights[li]);
+          var available = Math.max(96, bottom.getBoundingClientRect().top - content.getBoundingClientRect().top - 16);
+          content.style.maxHeight = available + "px";
+          best = { body: bodySize, title: titleSizes[ti], line: lineHeights[li], max: available };
+          if (content.scrollHeight <= available + 2) return;
+        }
+      }
+    }
+
+    applyPoemScale(best.body, best.title, best.line);
+    content.style.maxHeight = best.max + "px";
+  }
+  function schedulePoemFit() {
+    requestAnimationFrame(function () {
+      fitPoemToCard();
+      requestAnimationFrame(fitPoemToCard);
     });
   }
   function previewMessage(title, message, mode) {
@@ -705,6 +754,7 @@
   $("shuffleRecs").onclick = function () { renderRecs(state.poems.slice().reverse()); toast("已换一批"); };
   $("style").onchange = buildPrompt;
   $("ratio").onchange = buildPrompt;
+  window.addEventListener("resize", schedulePoemFit);
   $("apiKey").value = localStorage.getItem("poetry_api_key") || "";
   renderChips();
   updateCounter();
