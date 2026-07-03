@@ -127,6 +127,9 @@ func (db *DB) Migrate() error {
 	if err := db.migrateAbuseTables(); err != nil {
 		return fmt.Errorf("failed to migrate abuse protection tables: %w", err)
 	}
+	if err := db.migrateOriginalWorkTables(); err != nil {
+		return fmt.Errorf("failed to migrate original work tables: %w", err)
+	}
 
 	// Update schema version
 	if err := db.Exec(
@@ -424,6 +427,232 @@ func (db *DB) migrateAbuseTables() error {
 
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_abuse_blocks_target ON abuse_blocks(target_type, target_value)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_abuse_blocks_active ON abuse_blocks(enabled, expires_at)`)
+
+	return nil
+}
+
+func (db *DB) migrateOriginalWorkTables() error {
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS original_works (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_code TEXT UNIQUE,
+		api_key_id INTEGER NOT NULL,
+		title TEXT NOT NULL,
+		work_type TEXT NOT NULL DEFAULT 'poem',
+		content TEXT NOT NULL,
+		content_hash TEXT NOT NULL,
+		description TEXT,
+		visibility TEXT NOT NULL DEFAULT 'private',
+		status TEXT NOT NULL DEFAULT 'draft',
+		license_type TEXT NOT NULL DEFAULT 'cc0-like',
+		license_version TEXT NOT NULL DEFAULT 'v0.1',
+		original_commitment BOOLEAN NOT NULL DEFAULT FALSE,
+		license_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+		plagiarism_status TEXT NOT NULL DEFAULT 'pending',
+		image_prompt TEXT,
+		version INTEGER NOT NULL DEFAULT 1,
+		published_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS original_work_versions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		version INTEGER NOT NULL,
+		title TEXT NOT NULL,
+		content TEXT NOT NULL,
+		content_hash TEXT NOT NULL,
+		change_note TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		UNIQUE(work_id, version)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_license_acceptances (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		api_key_id INTEGER NOT NULL,
+		license_type TEXT NOT NULL,
+		license_version TEXT NOT NULL,
+		original_commitment BOOLEAN NOT NULL DEFAULT FALSE,
+		license_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+		acceptance_text TEXT,
+		accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_publication_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		api_key_id INTEGER NOT NULL,
+		from_status TEXT,
+		to_status TEXT NOT NULL,
+		visibility TEXT NOT NULL,
+		event_type TEXT NOT NULL DEFAULT 'publish',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS image_prompts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		api_key_id INTEGER NOT NULL,
+		prompt TEXT NOT NULL,
+		source TEXT NOT NULL DEFAULT 'work',
+		style TEXT,
+		size TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS media_assets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		api_key_id INTEGER NOT NULL,
+		asset_type TEXT NOT NULL DEFAULT 'image',
+		source TEXT NOT NULL DEFAULT 'generated',
+		url TEXT,
+		b64_json TEXT,
+		mime_type TEXT,
+		model TEXT,
+		size TEXT,
+		quality TEXT,
+		output_format TEXT,
+		prompt TEXT,
+		revised_prompt TEXT,
+		visibility TEXT NOT NULL DEFAULT 'private',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS image_generation_jobs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		api_key_id INTEGER NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		prompt TEXT NOT NULL,
+		style TEXT,
+		size TEXT,
+		model TEXT,
+		quality TEXT,
+		output_format TEXT,
+		cached INTEGER NOT NULL DEFAULT 0,
+		cost_units INTEGER NOT NULL DEFAULT 0,
+		error_message TEXT,
+		media_asset_id INTEGER,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
+		FOREIGN KEY (media_asset_id) REFERENCES media_assets(id)
+	)`).Error; err != nil {
+		return err
+	}
+	if err := db.ensureColumn("image_generation_jobs", "cached", "cached INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("image_generation_jobs", "cost_units", "cost_units INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_fingerprints (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		normalized_text TEXT NOT NULL,
+		normalized_hash TEXT NOT NULL,
+		simhash TEXT NOT NULL,
+		ngram_json TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS plagiarism_reports (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		normalized_hash TEXT NOT NULL,
+		simhash TEXT NOT NULL,
+		risk_level TEXT NOT NULL,
+		risk_reason TEXT,
+		exact_match_count INTEGER NOT NULL DEFAULT 0,
+		similar_match_count INTEGER NOT NULL DEFAULT 0,
+		top_matches_json TEXT,
+		review_status TEXT NOT NULL DEFAULT 'auto_checked',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS similarity_matches (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		report_id INTEGER NOT NULL,
+		work_id INTEGER NOT NULL,
+		source_type TEXT NOT NULL,
+		source_id TEXT NOT NULL,
+		source_title TEXT,
+		source_author TEXT,
+		similarity REAL NOT NULL DEFAULT 0,
+		match_type TEXT NOT NULL,
+		excerpt TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (report_id) REFERENCES plagiarism_reports(id),
+		FOREIGN KEY (work_id) REFERENCES original_works(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS manual_review_queue (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		report_id INTEGER NOT NULL,
+		risk_level TEXT NOT NULL,
+		reason TEXT,
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (report_id) REFERENCES plagiarism_reports(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_original_works_api_key_created ON original_works(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_original_works_public ON original_works(status, visibility, published_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_original_works_hash ON original_works(content_hash)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_original_work_versions_work ON original_work_versions(work_id, version)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_license_acceptances_work ON work_license_acceptances(work_id, accepted_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_publication_events_work ON work_publication_events(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_prompts_work ON image_prompts(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_media_assets_work ON media_assets(work_id, asset_type, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_media_assets_api_key ON media_assets(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_work ON image_generation_jobs(work_id, status, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_api_key ON image_generation_jobs(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_fingerprints_work ON work_fingerprints(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_fingerprints_hash ON work_fingerprints(normalized_hash)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_plagiarism_reports_work ON plagiarism_reports(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_plagiarism_reports_risk ON plagiarism_reports(risk_level, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_similarity_matches_report ON similarity_matches(report_id, similarity)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_similarity_matches_work ON similarity_matches(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_manual_review_queue_status ON manual_review_queue(status, risk_level, created_at)`)
 
 	return nil
 }

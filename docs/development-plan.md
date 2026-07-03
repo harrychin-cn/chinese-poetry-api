@@ -60,7 +60,7 @@
 3. **数据质量闭环**：已发布增强数据必须能追溯来源、候选批次、质量状态、抽检结果和回滚路径。
 4. **AI 生产闭环**：黄金评测集、QanloAPI 候选生成、`quality-gate`、人工抽样质检、发布队列形成固定流水线。
 5. **运营闭环**：管理员能看 Key、用量、错误率、热门查询、反馈、封禁、备份和恢复，不依赖临时 SQL。
-6. **商业验证闭环**：至少 3-5 个真实开发者/内容工具完成试用记录，其中有人完成充值或明确付费意向。
+6. **商业验证闭环**：开发收口阶段先保证 API Key、Qanlo 绑定/充值入口、用量统计和价格页可用；3-5 个真实试用记录与充值/付费意向按最新口径后置为运营验证。
 7. **稳定性交付**：本地验证、smoke、备份恢复、关键契约测试跑通后再考虑部署/CI，不烧无效 GitHub Actions 额度。
 
 逐项状态和证据统一维护在 [final-acceptance-checklist.md](final-acceptance-checklist.md)。后续停工判断以该清单全部达到 `DONE` 为准。
@@ -73,7 +73,7 @@
 
 1. `ready_for_stop=true`：项目达到最终形态，可以停工。
 2. `ready_for_stop=false`：只处理报告里的 `blockers`，不改方向、不另起路线。
-3. 真实人工复核、真实 Qanlo 调用、真实商业试用这三类外部证据，脚本只做门禁，不伪造结果。
+3. Codex 代理黄金集复核可作为当前开发收口证据；真实人工黄金集复核、真实商业试用可通过显式参数变成硬门禁，但默认不阻塞开发停工；真实 Qanlo 调用和真实商业证据不伪造。
 
 ### 0.5 可选生图能力边界
 
@@ -84,18 +84,18 @@
 | 方案 | 产品形态 | 技术要求 | 执行口径 |
 | --- | --- | --- | --- |
 | 方案 A：API 只返回诗词和 prompt | `唐诗宋词API -> 返回诗词/意境/prompt -> Codex、前端或客户自己的系统再调用 gpt-image-2 生图` | 本项目只需要文本能力；可由规则模板或 QanloAPI 生成稳定 prompt | **优先方案**。先做成低成本增值字段，不消耗本项目服务器生图额度 |
-| 方案 B：API 直接返回图片 | `用户请求 -> 唐诗宋词API -> 查诗 -> 生成 prompt -> 携带用户自己的 Qanlo 生图 Key 调用 gpt-image-2 -> 返回图片` | 服务端只配置网关默认项，如 `IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2`；生图 Key 由用户在页面填写并随本次请求传入 | **后置方案**。等有明确客户需求、成本边界和网关验证后再执行 |
+| 方案 B：API 直接返回图片 | `用户请求 -> 唐诗宋词API -> 查诗 -> 生成 prompt -> 调用 gpt-image-2 -> 返回图片` | 服务端必须配置支持图片生成接口的内部 Key/网关，如 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2` | **后置方案**。等有明确客户需求、成本边界和网关验证后再执行 |
 
 必须分开两套 Key：
 
 1. **用户访问诗词 API 的 Key**：只负责鉴权、限流、计费、统计和风控。
-2. **用户自己的 Qanlo 生图 Key**：只保存在用户浏览器，本次生图请求传入，服务端只代转不落库。
+2. **服务器内部调用模型/生图模型的 Key**：只由服务端持有，用来调用 `gpt-image-2` 或兼容图片生成网关。
 
 固定规则：
 
 - 不把用户的诗词 API Key 直接拿去调模型或生图接口。
 - 当前 `agent_model` 偏文本/知识召回，不能当成图片生成模型使用。
-- 未验证用户自带 `image_api_key`、`IMAGE_BASE_URL`、`IMAGE_MODEL` 链路前，接口不得承诺“直接返回图片”。
+- 未配置并验证 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL` 前，接口不得承诺“直接返回图片”。
 - 方案 A 的 prompt 字段可以先进入 API/文档/示例；方案 B 只进入待执行队列，不阻塞当前最终验收。
 
 ---
@@ -473,7 +473,8 @@ flowchart LR
 - [x] 已形成开放策略：先开放调用示例/轻量 SDK，暂不开放增强数据、客户后台和 Qanlo 商业链路。
 - [x] 新增真实试用记录审计工具：`scripts/commercial_validation_audit.ps1` 校验 `data/commercial/trials.jsonl` 是否达到 3/5 个真实试用和至少 1 个充值/明确付费意向；示例文件只作格式验证，不算真实证据。
 - [x] 新增最终停工门禁：`scripts/final_acceptance_audit.ps1` 读取 `docs/final-acceptance-checklist.md` 和关键机器证据，只有所有清单项为 `DONE` 且 `ready_for_stop=true` 时才允许停工。
-- [ ] 可选生图能力先纳入规划不执行：优先补 `prompt` 型字段/接口方案；直接返回图片的能力等真实客户需求、成本边界和 `gpt-image-2` 网关验证后再排期。
+- [x] 可选生图能力完成 MVP：已补全局 `/api/v1/images/generate` 和作品级 `/api/v1/works/:id/images/generate`；作品级接口支持 `dry_run=true` 只落库 Prompt/任务，不消耗额度，真实生成时使用服务端 `IMAGE_API_KEY` 或单次 `X-Image-API-Key`，并保存 `media_assets` / `image_generation_jobs`。
+- [x] 可选生图后台开关与成本审计已补齐：真实调用必须显式开启 `IMAGE_GENERATION_ENABLED=true`；默认关闭时 `dry_run` 和缓存读取仍可用，但不会访问上游；作品级任务新增 `cached` / `cost_units` 字段，用于区分缓存命中、预览任务和真实生成成本。
 
 验收：
 
@@ -499,7 +500,7 @@ flowchart LR
 | 7 | 稳定性和部署准备 | 部分完成 | 本地验证、smoke、备份恢复、核心契约测试稳定；CI/部署前先本地通过 |
 | 8 | 商业验证 | 待执行 | 3-5 个真实开发者/内容工具试用，有充值或明确付费意向 |
 | 9 | 规模化扩库 | 待执行 | 不靠人工逐条审 40 万首；按 AI 生产线 + 0.5%-2% 抽检推进 |
-| 10 | 可选生图扩展 | 待执行 | 先上线诗词意境/prompt 返回；如要 API 直接返回图片，必须完成内部 Image Key/网关、成本控制、缓存和风控验证 |
+| 10 | 可选生图扩展 | 已完成 MVP | 已上线全局生图和作品级生图入口；真实上游生成默认关闭，需 `IMAGE_GENERATION_ENABLED=true`；作品级 dry_run 可安全预览 Prompt，缓存命中不调用上游，真实生成隔离使用内部/单次生图 Key，并在任务中记录 `cached` / `cost_units`；`force_regenerate=true` 可强制重生 |
 
 ### 7.2 数据增强终极路线
 
@@ -580,9 +581,11 @@ flowchart LR
 1. 先补方案 A：接口返回 `image_prompt`、`visual_mood`、`style_hint`、`negative_prompt` 等文本字段。
 2. 文档和示例先教客户如何拿 prompt 去 Codex、前端或自己的生图服务里调用 `gpt-image-2`。
 3. 只有当真实客户明确需要“诗词 API 直接返回图片”时，才进入方案 B。
-4. 方案 B 服务端只保留网关默认配置：`IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2`；生图 Key 由用户在页面填写并随请求传入。
+4. 方案 B 必须新增服务端内部配置：`IMAGE_GENERATION_ENABLED=true`、`IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL=gpt-image-2`，并确认网关支持图片生成接口。
 5. 方案 B 必须有缓存、单 Key 限额、失败降级、成本记录和后台开关；默认关闭。
-6. 用户访问诗词 API 的 Key 与用户自己的 Qanlo 生图 Key 必须分开填写、分开使用。
+6. 用户访问诗词 API 的 Key 与服务器内部生图 Key 必须完全隔离。
+
+当前 MVP 已落地：全局 `/api/v1/images/generate` 面向控制台；作品级 `/api/v1/works/:id/images/generate` 会把作品正文、`image_prompt` 和补充要求合成“画中题诗”Prompt，`dry_run=true` 不调上游、不消耗额度，真实生成成功后保存 `media_assets` 和 `image_generation_jobs`。同一 API Key 下相同 work/prompt/model/size/quality/output_format 默认复用最近已有图片资产，不再调用上游、不再增加本地用量；`force_regenerate=true` 可强制重生。后台开关已固定为默认关闭，只有 `IMAGE_GENERATION_ENABLED=true` 才允许真实上游调用；作品级任务已记录 `cached` / `cost_units`，后续若继续扩展，只做更细的余额流水/后台看板，不再改 Key 隔离原则。
 
 ### 7.5 技术债固定处理队列
 
@@ -605,7 +608,7 @@ flowchart LR
 1. 数据增强批次抽检通过率低于 90%，停止扩批，先进入失败原因分析。
 2. `quality-gate` 出现 error，不导入数据库。
 3. 真实 QanloAPI 批量调用前没有确认 `QANLO_AGENT_KEY` 和成本边界，不批量跑。
-4. 真实生图调用前没有确认用户自带 `image_api_key`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、单次成本和缓存策略，不批量跑；未验证网关图片接口前不承诺直接返回图片。
+4. 真实生图调用前没有确认 `IMAGE_GENERATION_ENABLED=true`、`IMAGE_API_KEY` / `X-Image-API-Key`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、`IMAGE_COST_UNITS` 和缓存策略，不批量跑；未验证网关图片接口前不承诺直接返回图片。
 5. 本地验证没过，不 push、不部署、不反复烧 GitHub Actions。
 6. CI/部署失败如果是账单、额度、Runner、网络、权限等外部问题，立即停止，不反复 rerun。
 7. 发现增强数据无法回滚或无法追溯来源，暂停发布。
@@ -630,21 +633,30 @@ flowchart LR
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\final_closeout.ps1 -Runner auto
 ```
 
-当人工复核、Qanlo 密钥和商业试用证据都已补齐后，用最终模式：
+默认开发收口模式：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\final_closeout.ps1 `
   -Runner auto `
-  -ApplyGolden `
-  -AllowPaidQanlo `
-  -ImportQanlo `
   -RequireDone
+```
+
+如果后续要强制真实人工黄金集复核和真实商业试用证据，再加硬门禁：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\final_closeout.ps1 `
+  -Runner auto `
+  -RequireDone `
+  -RequireHumanGoldenReview `
+  -RequireCommercialValidation
 ```
 
 固定判定：
 
 - 不带 `-AllowPaidQanlo` 时，脚本绝不发起真实 Qanlo 付费调用。
 - 不带 `-ApplyGolden` 时，脚本不会把黄金集人工复核合并成最终评测集。
+- 不带 `-RequireHumanGoldenReview` 时，Codex 代理黄金集复核可作为当前开发收口证据。
+- 不带 `-RequireCommercialValidation` 时，真实商业试用和充值证据作为运营后置项，不作为开发停工 blocker。
 - `-RequireDone` 只有在 `ready_for_stop=true` 时才会成功，否则失败并输出阻塞项。
 - 以后只处理 `data/acceptance/final-closeout-report.json` 里的 `blockers`，不再追加开放式“下一步”。
 

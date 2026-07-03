@@ -57,3 +57,26 @@ func TestLoadAbuseProtectionEnv(t *testing.T) {
 	assert.Equal(t, 30, cfg.Abuse.WindowSeconds)
 	assert.Equal(t, 15, cfg.Abuse.BlockMinutes)
 }
+
+func TestLoadImageEnv(t *testing.T) {
+	t.Setenv("IMAGE_GENERATION_ENABLED", "true")
+	t.Setenv("IMAGE_API_KEY", "env-image-key")
+	t.Setenv("IMAGE_BASE_URL", "https://image.example.test/openai/v1")
+	t.Setenv("IMAGE_MODEL", "gpt-image-2")
+	t.Setenv("IMAGE_QUALITY", "medium")
+	t.Setenv("IMAGE_OUTPUT_FORMAT", "webp")
+	t.Setenv("IMAGE_TIMEOUT_SECONDS", "45")
+	t.Setenv("IMAGE_COST_UNITS", "3")
+
+	cfg, err := Load("")
+	require.NoError(t, err)
+
+	assert.True(t, cfg.Image.Enabled)
+	assert.Equal(t, "env-image-key", cfg.Image.APIKey)
+	assert.Equal(t, "https://image.example.test/openai/v1", cfg.Image.BaseURL)
+	assert.Equal(t, "gpt-image-2", cfg.Image.Model)
+	assert.Equal(t, "medium", cfg.Image.Quality)
+	assert.Equal(t, "webp", cfg.Image.OutputFormat)
+	assert.Equal(t, 45, cfg.Image.TimeoutSeconds)
+	assert.Equal(t, 3, cfg.Image.CostUnits)
+}

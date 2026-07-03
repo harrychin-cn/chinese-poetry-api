@@ -69,6 +69,18 @@ GET /api/v1/usage/daily
 GET /api/v1/usage/endpoints
 GET /api/v1/usage/queries
 POST /api/v1/feedback
+GET /api/v1/public/works/:code
+POST /api/v1/works
+GET /api/v1/works
+GET /api/v1/works/:id
+PATCH /api/v1/works/:id
+POST /api/v1/works/:id/publish
+GET /api/v1/works/:id/versions
+GET /api/v1/works/:id/license-acceptances
+GET /api/v1/works/:id/plagiarism-report
+GET /api/v1/works/:id/media-assets
+GET /api/v1/works/:id/image-jobs
+POST /api/v1/works/:id/images/generate
 ```
 
 管理员后台接口需要 `X-Admin-Token`：
@@ -212,21 +224,82 @@ curl -X POST "http://localhost:1279/api/v1/knowledge/batch" \
 ```bash
 curl -X POST "http://localhost:1279/api/v1/images/generate" \
   -H "X-API-Key: cp_live_xxx" \
+  -H "X-Image-API-Key: sk-xxx" \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"古风水墨，江南春景，轻舟远山，留白构图","size":"1024x1024","image_api_key":"你的 Qanlo 生图 API Key"}'
+  -d '{"prompt":"古风水墨，江南春景，轻舟远山，留白构图","size":"1024x1024"}'
 ```
 
-这个接口必须先校验本地 `X-API-Key`，不会公开创建免费 Key。用户在控制台填写自己的 Qanlo 生图 API Key 后，前端会随本次请求传入 `image_api_key`；服务器只代转，不落库、不使用全站后台环境变量。未提供时返回 `400 image_api_key_required`，不消耗生图额度。
+这个接口必须先校验本地 `X-API-Key`，不会公开创建免费 Key。服务端真实生图默认关闭，必须先设置 `IMAGE_GENERATION_ENABLED=true`；生图 Key 可以走服务端 `IMAGE_API_KEY`，也可以由本地控制台通过 `X-Image-API-Key` 按次提交。未开启时返回 `503 image_generation_disabled`，未提供 Key 时返回 `503 image_config_missing`，两种情况都不消耗生图额度。
 
-可选服务端网关默认配置：
+可选服务端配置：
 
 ```bash
+IMAGE_GENERATION_ENABLED=true
+IMAGE_API_KEY=sk-...
 IMAGE_BASE_URL=https://qanlo.com/openai/v1
 IMAGE_MODEL=gpt-image-2
 IMAGE_QUALITY=high
 IMAGE_OUTPUT_FORMAT=png
 IMAGE_TIMEOUT_SECONDS=180
+IMAGE_COST_UNITS=1
 ```
+
+## 原创作品库 MVP
+
+用户可以先用 API Key 保存自己的原创诗词曲赋，系统会生成平台作品编号、保存版本，并记录原创承诺和开放授权确认。公开发布必须同时传：
+
+- `original_commitment: true`
+- `license_accepted: true`
+
+发布时会自动做基础查重：先按规范化文本 hash 查完全重复，再用 n-gram overlap 比对古代诗词库和平台原创库。`exact_duplicate` / `high_risk` 不会公开发布，会进入 `review_required`；低风险和中风险会保留查重报告。
+
+创建并发布：
+
+```bash
+curl -X POST "http://localhost:1279/api/v1/works" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"山窗夜坐","work_type":"poem","content":"山窗灯影薄\n一盏照清风","original_commitment":true,"license_accepted":true,"publish":true}'
+```
+
+常用接口：
+
+```bash
+curl "http://localhost:1279/api/v1/works" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1" -H "X-API-Key: cp_live_xxx"
+curl -X PATCH "http://localhost:1279/api/v1/works/1" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"山窗灯影薄\n一盏照清风\n松声入梦来","change_note":"补第三句"}'
+curl -X POST "http://localhost:1279/api/v1/works/1/publish" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1/versions" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1/license-acceptances" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1/plagiarism-report" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/public/works/PCQF-2026-00000001"
+```
+
+作品级生图资产：
+
+```bash
+# 只生成并保存作品专属 Prompt / 任务，不调用生图网关、不消耗额度，适合前端预览和冒烟测试
+curl -X POST "http://localhost:1279/api/v1/works/1/images/generate" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"style":"古风水墨","size":"1024x1024","dry_run":true}'
+
+# 真实生成：必须先开启 IMAGE_GENERATION_ENABLED=true；可复用服务端 IMAGE_API_KEY，也可按次传 X-Image-API-Key
+curl -X POST "http://localhost:1279/api/v1/works/1/images/generate" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "X-Image-API-Key: sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"style":"古风水墨","size":"1024x1024","prompt":"题诗自然融入画中留白"}'
+
+  # 同样参数再次调用默认命中缓存；如需重新生成，把请求体加上 "force_regenerate": true
+  curl "http://localhost:1279/api/v1/works/1/media-assets?asset_type=image" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1/image-jobs" -H "X-API-Key: cp_live_xxx"
+```
+
+这个入口会把原创作品正文、作品 `image_prompt`、本次补充要求合并成“画中题诗”的完整生图提示词。`dry_run=true` 只落库任务和 Prompt；真实生成成功后才保存 `media_assets`，记录一次本地 API Key 用量，并在 `image_generation_jobs.cost_units` 写入本次成本单位。相同 work/prompt/model/size/quality/output_format 默认复用最近一次图片资产，返回 `cached=true`、新增成功任务并关联同一资产，`cost_units=0`，不调用生图网关、不增加本地用量；需要强制重生时传 `"force_regenerate": true`。即使后台开关关闭，`dry_run` 和缓存命中仍可用，只有真实上游调用会被拦截。
 
 ## 查看 API Key 与今日用量
 
