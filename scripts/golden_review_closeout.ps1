@@ -6,7 +6,7 @@ param(
     [string]$SheetAuditOut = "data/enrichment/golden-sample-1000.prefilled-review-66.audit.json",
     [string]$Reviewer = "operator",
     [switch]$Apply,
-    [ValidateSet("auto", "local", "docker", "python")]
+    [ValidateSet("auto", "local", "docker")]
     [string]$Runner = "auto",
     [string]$DockerImage = "golang:1.25"
 )
@@ -68,15 +68,6 @@ function Test-LocalGoReady {
     return $false
 }
 
-function Test-PythonReady {
-    try {
-        & python --version *> $null
-        return $LASTEXITCODE -eq 0
-    } catch {
-        return $false
-    }
-}
-
 function Resolve-Runner {
     if ($Runner -ne "auto") {
         return $Runner
@@ -84,13 +75,10 @@ function Resolve-Runner {
     if (Test-LocalGoReady) {
         return "local"
     }
-    if (Test-PythonReady) {
-        return "python"
-    }
     if (Test-DockerReady) {
         return "docker"
     }
-    throw "Local Go CGO/C compiler is not ready, Docker is not ready, and Python fallback is unavailable. Start Docker Desktop, install a local CGO toolchain, or install Python."
+    throw "Local Go CGO/C compiler is not ready and Docker is not ready. Start Docker Desktop, or install a local CGO toolchain and set CGO_ENABLED=1."
 }
 
 function Get-LocalPath {
@@ -125,33 +113,6 @@ function Convert-ToCommandPath {
 }
 
 $ResolvedRunner = Resolve-Runner
-if ($ResolvedRunner -eq "python") {
-    $fallback = Join-Path $PSScriptRoot "golden_review_closeout_fallback.py"
-    if (-not (Test-Path -LiteralPath $fallback)) {
-        throw "Python fallback not found: $fallback"
-    }
-    Write-Host "Runner: python"
-    $fallbackArgs = @(
-        $fallback,
-        "--base", $Base,
-        "--sheet", $Sheet,
-        "--out", $Out,
-        "--audit-out", $AuditOut,
-        "--sheet-audit-out", $SheetAuditOut,
-        "--reviewer", $Reviewer,
-        "--require-done"
-    )
-    if ($Apply) {
-        $fallbackArgs += "--apply"
-    }
-    Write-Host ""
-    Write-Host ("> python " + ($fallbackArgs -join " "))
-    & python @fallbackArgs
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-    exit 0
-}
 
 $localBase = Get-LocalPath $Base
 $localSheet = Get-LocalPath $Sheet

@@ -98,50 +98,145 @@
     .poem-lines { font-family: var(--song); font-size: 27px; line-height: 2; letter-spacing: .08em; margin: 22px 0 20px; white-space: pre-line; overflow: hidden; }
     .poem-card .bottom { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .seal { width: 48px; height: 48px; border: 1px solid #e7c5be; border-radius: 12px; display: grid; place-items: center; color: #c25446; background: rgba(255,244,235,.8); font-family: var(--song); }
-    .image-panel { display: grid; grid-template-rows: auto 1fr; position: relative; min-height: 620px; }
-    .panel-head { padding: 17px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(255,250,240,.78); position: relative; z-index: 3; }
+    .image-panel { display: grid; grid-template-rows: auto 1fr auto; }
+    .panel-head { padding: 17px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .panel-head h2 { font-size: 19px; }
-    .preview { min-height: 520px; display: grid; place-items: center; position: relative; overflow: hidden; background: #fffefa url("console-placeholder-bg.png") center center / cover no-repeat; isolation: isolate; padding: 96px 32px; }
-    .preview:before { content: ""; position: absolute; inset: 0; background:
-        radial-gradient(ellipse at 50% 40%, rgba(255,255,255,.78) 0 17%, rgba(255,255,255,.42) 42%, transparent 70%),
-        linear-gradient(180deg, rgba(255,255,255,.52) 0%, rgba(255,255,255,.22) 54%, rgba(250,243,232,.16) 100%);
-      pointer-events: none; z-index: 0; }
-    .empty-img { position: relative; z-index: 1; text-align: center; color: #6f6154; text-shadow: 0 1px 0 rgba(255,255,255,.74); }
+    .preview { min-height: 320px; display: grid; place-items: center; position: relative; overflow: hidden; background: #fffdf8; isolation: isolate; }
+    .preview:before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 75%, rgba(196,151,88,.10), transparent 36%), linear-gradient(180deg, rgba(255,255,255,.88), rgba(249,237,219,.45)); pointer-events: none; z-index: 0; }
+    .ink-bg { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .ink-bg .mountains {
+      position: absolute;
+      left: -4%;
+      right: -4%;
+      bottom: 18%;
+      height: 58%;
+      opacity: .38;
+      filter: blur(.6px);
+      background:
+        radial-gradient(ellipse at 12% 72%, rgba(85,91,88,.28) 0 17%, transparent 34%),
+        radial-gradient(ellipse at 28% 68%, rgba(83,91,88,.20) 0 20%, transparent 39%),
+        radial-gradient(ellipse at 47% 63%, rgba(72,79,78,.26) 0 22%, transparent 43%),
+        radial-gradient(ellipse at 69% 67%, rgba(70,78,75,.22) 0 19%, transparent 38%),
+        radial-gradient(ellipse at 90% 61%, rgba(72,80,76,.24) 0 23%, transparent 44%),
+        linear-gradient(to top, rgba(85,91,88,.13), transparent 48%);
+    }
+    .ink-bg .river {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 42%;
+      opacity: .25;
+      background:
+        radial-gradient(ellipse at 42% 22%, rgba(112,118,116,.18) 0 15%, transparent 42%),
+        radial-gradient(ellipse at 68% 38%, rgba(112,118,116,.15) 0 10%, transparent 36%),
+        repeating-linear-gradient(172deg, transparent 0 22px, rgba(105,111,108,.12) 23px 24px, transparent 25px 54px);
+    }
+    .ink-bg .boat {
+      position: absolute;
+      right: 18%;
+      bottom: 26%;
+      width: 108px;
+      height: 28px;
+      opacity: .34;
+      border-bottom: 4px solid #777b78;
+      border-radius: 0 0 58% 58%;
+      transform: rotate(-6deg) skewX(-18deg);
+    }
+    .ink-bg .boat:before {
+      content: "";
+      position: absolute;
+      left: 45px;
+      bottom: 12px;
+      width: 12px;
+      height: 32px;
+      border-radius: 999px 999px 0 0;
+      background: #777b78;
+      box-shadow: 16px 12px 0 -4px rgba(119,123,120,.9);
+    }
+    .ink-bg .boat:after {
+      content: "";
+      position: absolute;
+      right: -18px;
+      bottom: 16px;
+      width: 82px;
+      height: 2px;
+      background: rgba(100,105,102,.78);
+      transform: rotate(21deg);
+      transform-origin: left center;
+    }
+    .bamboo {
+      position: absolute;
+      right: 18px;
+      top: -18px;
+      width: 310px;
+      height: 172px;
+      opacity: .42;
+      transform: rotate(-8deg);
+    }
+    .bamboo:before {
+      content: "";
+      position: absolute;
+      right: 74px;
+      top: -8px;
+      width: 3px;
+      height: 184px;
+      border-radius: 999px;
+      background: linear-gradient(to bottom, rgba(70,78,75,.55), rgba(70,78,75,.08));
+      transform: rotate(45deg);
+      box-shadow: -28px 16px 0 -1px rgba(70,78,75,.20);
+    }
+    .bamboo i {
+      position: absolute;
+      display: block;
+      width: 76px;
+      height: 18px;
+      border-radius: 100% 0 100% 0;
+      background: linear-gradient(100deg, rgba(54,64,60,.46), rgba(54,64,60,.08));
+      transform-origin: right center;
+      filter: blur(.15px);
+    }
+    .bamboo i:nth-child(1) { right: 118px; top: 22px; transform: rotate(16deg); }
+    .bamboo i:nth-child(2) { right: 90px; top: 40px; transform: rotate(-22deg) scaleX(.92); }
+    .bamboo i:nth-child(3) { right: 145px; top: 58px; transform: rotate(29deg) scaleX(.86); }
+    .bamboo i:nth-child(4) { right: 58px; top: 74px; transform: rotate(-14deg) scaleX(1.08); }
+    .bamboo i:nth-child(5) { right: 134px; top: 96px; transform: rotate(11deg) scaleX(.78); }
+    .bamboo i:nth-child(6) { right: 34px; top: 111px; transform: rotate(-28deg) scaleX(.82); }
+    .bamboo i:nth-child(7) { right: 165px; top: 122px; transform: rotate(34deg) scaleX(.7); }
+    .bamboo i:nth-child(8) { right: 84px; top: 136px; transform: rotate(-7deg) scaleX(.72); }
+    .empty-img { position: relative; z-index: 1; text-align: center; color: #6f6154; }
     .empty-img .pic { width: 74px; height: 74px; border: 2px solid var(--gold); border-radius: 22px; display: grid; place-items: center; margin: 0 auto 14px; font: 700 34px var(--song); color: #bf7f28; }
     .empty-img.error-img .pic { border-color: #c64a3f; color: #a8322a; }
     .empty-img.loading-img .pic { animation: pulseInk 1.2s ease-in-out infinite; }
-    .preview.has-image { background: linear-gradient(135deg, #f8efe1, #d9c5aa); padding: 28px; }
-    .preview.has-image:before { display: none; }
-    .generated-img { position: relative; z-index: 1; display: block; width: auto; height: auto; max-width: 100%; max-height: min(72vh, 640px); object-fit: contain; border-radius: 18px; background: #fffaf2; box-shadow: 0 26px 80px rgba(41,24,12,.24); }
+    .preview.has-image:before, .preview.has-image .ink-bg { display: none; }
+    .generated-img { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; background: #fffaf0; }
     @keyframes pulseInk {
       0%, 100% { transform: scale(1); opacity: .74; }
       50% { transform: scale(1.05); opacity: 1; }
     }
-    .prompt-dock { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1fr); align-items: end; }
-    .prompt-box { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; background: rgba(255,253,247,.88); box-shadow: 0 18px 48px rgba(83,48,18,.08); backdrop-filter: blur(2px); }
-    .prompt-box textarea { min-height: 86px; max-height: 150px; background: transparent; border: 0; border-top: 1px solid #eadac5; border-radius: 0; padding: 10px 0 0; }
+    .prompt-box { border-top: 1px solid var(--line); padding: 16px 22px; background: rgba(255,250,240,.72); }
+    .prompt-box textarea { min-height: 86px; max-height: 128px; }
     .small-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-    .prompt-box .small-actions { justify-content: flex-end; }
-    button:disabled, .btn:disabled { opacity: .46; cursor: not-allowed; box-shadow: none; transform: none; }
     .recommend { margin-top: 18px; }
     .recommend-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .rec-list { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; }
     .rec { border: 1px solid var(--line); border-radius: 12px; background: rgba(255,250,240,.75); padding: 10px 12px; min-height: 64px; text-align: left; }
     .rec b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fixed-bar { position: fixed; right: 28px; bottom: 18px; display: flex; gap: 12px; z-index: 5; }
+    .fixed-bar .btn { min-width: 150px; }
     #toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 20px); opacity: 0; background: #211814; color: #fff; border-radius: 999px; padding: 10px 18px; box-shadow: 0 20px 50px rgba(0,0,0,.25); transition: .18s; pointer-events: none; z-index: 20; }
     #toast.show { opacity: 1; transform: translate(-50%, 0); }
     .hidden { display: none !important; }
     .watermark { position: absolute; right: 28px; top: 28px; color: rgba(168,50,42,.08); font: 900 120px var(--song); pointer-events: none; }
     .soft-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
     .counter { text-align: right; font-size: 12px; color: #9a8978; margin-top: 3px; }
-    .query-policy { margin-top: 8px; color: #8b6b4d; font-size: 12px; }
-    .switch-row.compact { margin-top: 10px; padding-top: 10px; }
     @media (max-width: 1050px) {
       body { overflow: auto; }
       .app { display: block; height: auto; }
       .sidebar, .main { height: auto; overflow: visible; }
       .workspace { grid-template-columns: 1fr; }
       .rec-list { grid-template-columns: repeat(2, 1fr); }
+      .fixed-bar { position: static; margin: 14px 28px 22px; }
     }
     @media (max-width: 720px) {
       .sidebar, .main { padding: 18px; }
@@ -163,6 +258,12 @@
         <p>诗画工坊</p>
       </div>
     </header>
+    <nav class="nav-tabs" aria-label="theme">
+      <button class="tab active" type="button">宣纸</button>
+      <button class="tab" type="button">青玉</button>
+      <button class="tab" type="button">夜色</button>
+    </nav>
+
     <section class="card" id="keyCard">
       <div class="card-title">
         <h2>API Key 与额度</h2>
@@ -181,20 +282,6 @@
       <p class="soft-note">本页不会自动创建免费 Key。请先在 Qanlo 充值/开通，或由管理员发放 Key 后再填写。</p>
     </section>
 
-    <section class="card" id="imageKeyCard">
-      <div class="card-title">
-        <h2>生图 API Key</h2>
-        <span class="status off" id="imageKeyStatus"><i class="dot"></i>未配置</span>
-      </div>
-      <label for="imageApiKey">专用于生成图片</label>
-      <div class="key-row">
-        <input id="imageApiKey" type="password" placeholder="填写 IMAGE_API_KEY / Qanlo 图像 Key" autocomplete="off" />
-        <button class="icon-btn" type="button" id="saveImageKey" title="保存到本机">存</button>
-        <button class="icon-btn" type="button" id="copyImageKey" title="复制生图 Key">⧉</button>
-      </div>
-      <p class="soft-note">这个 Key 只用于“生成图片”，仅保存在本机浏览器；搜索诗词仍使用上方 API Key。</p>
-    </section>
-
     <section class="card">
       <div class="card-title">
         <h2>自然语言搜索诗词</h2>
@@ -205,20 +292,12 @@
       <div class="counter"><span id="qCount">0</span> / 200</div>
       <label>热门场景</label>
       <div class="chips" id="chips"></div>
-      <p class="query-policy" id="queryPolicy">热门场景只是快捷填充；搜索永远以输入框当前文字为准。</p>
       <div class="switch-row">
         <div>
           <b>同时准备意境图 Prompt</b>
           <p class="tiny">按诗句意象、氛围、时令和色彩生成可复制提示词。</p>
         </div>
         <label class="switch"><input type="checkbox" id="promptToggle" checked><span class="slider"></span></label>
-      </div>
-      <div class="switch-row compact">
-        <div>
-          <b>画面上显示诗句文字</b>
-          <p class="tiny">生成时把诗句做成画中题诗，像题跋一样融入留白处。</p>
-        </div>
-        <label class="switch"><input type="checkbox" id="poemTextToggle" checked><span class="slider"></span></label>
       </div>
       <div class="form-grid">
         <div>
@@ -234,7 +313,21 @@
         <button class="btn primary" id="searchBtn" type="button">🔍 搜索诗词</button>
         <button class="btn ghost" id="promptBtn" type="button">▧ 生成图片</button>
       </div>
-      <p class="soft-note">点击“生成图片”会先校验 Key 与额度，再由服务器调用 Qanlo 生图并显示在右侧；未配置生图密钥时只返回提示，不会白嫖额度。</p>
+      <p class="soft-note">点击“生成图片”会先校验 API Key、额度和你填写的 Qanlo 生图 Key，再生成并显示在右侧。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <h2>Qanlo 生图 Key</h2>
+        <span class="status off" id="imageKeyStatus"><i class="dot"></i>未保存</span>
+      </div>
+      <label for="imageApiKey">生图 API Key</label>
+      <div class="key-row">
+        <input id="imageApiKey" type="password" placeholder="粘贴你在 qanlo.com 创建的生图 Key" autocomplete="off" />
+        <button class="icon-btn" type="button" id="saveImageKey" title="保存到本机">存</button>
+        <button class="icon-btn" type="button" id="clearImageKey" title="清除生图 Key">清</button>
+      </div>
+      <p class="soft-note">这个 Key 只保存在本浏览器。服务器只在本次生图请求中转发使用，不落库、不作为全站后台环境变量。</p>
     </section>
 
     <section class="card">
@@ -248,7 +341,7 @@
         <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
       </div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/:id/plagiarism-report /api/v1/public/works/:code /docs /pricing</div>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -289,10 +382,24 @@
           <span class="status">意境 Prompt</span>
         </div>
         <div class="preview" id="preview">
+          <div class="ink-bg" aria-hidden="true">
+            <div class="mountains"></div>
+            <div class="river"></div>
+            <div class="boat"></div>
+            <div class="bamboo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
           <div class="empty-img">
             <div class="pic">画</div>
             <h2>尚未生成图片</h2>
             <p>输入诗词并点击「生成图片」后，<br>图片会直接显示在这个区域。</p>
+          </div>
+        </div>
+        <div class="prompt-box">
+          <label for="promptOut">图片提示词 Prompt</label>
+          <textarea id="promptOut" readonly>古风水墨风格，江南春景，绿水轻舟，远山薄雾，柳枝拂水，意境空灵，留白构图，中国古典水墨画</textarea>
+          <div class="small-actions">
+            <button class="btn ghost" id="copyPrompt" type="button">复制提示词</button>
+            <button class="btn outline" id="openImage" type="button">在线生图备用</button>
           </div>
         </div>
       </article>
@@ -304,17 +411,11 @@
       </div>
       <div class="rec-list" id="recs"></div>
     </section>
-    <section class="prompt-dock" aria-label="图片提示词">
-      <div class="prompt-box">
-        <label for="promptOut">图片提示词 Prompt</label>
-        <textarea id="promptOut" readonly>古风水墨风格，江南春景，绿水轻舟，远山薄雾，柳枝拂水，意境空灵，留白构图，中国古典水墨画</textarea>
-        <div class="small-actions">
-          <button class="btn ghost" id="copyPrompt" type="button">复制提示词</button>
-          <button class="btn outline" id="downloadImage" type="button" disabled title="生成图片后才可下载">下载图片</button>
-        </div>
-      </div>
-    </section>
   </main>
+</div>
+<div class="fixed-bar">
+  <button class="btn ghost" id="copyPromptBottom" type="button">复制提示词 ⧉</button>
+  <button class="btn primary" id="openImageBottom" type="button">在线生图备用 ↘</button>
 </div>
 <div id="toast"></div>
 <script>
@@ -334,7 +435,9 @@
     type: { name: "词" },
     content: ["闲梦远，南国正芳春。", "船上管弦江面绿，满城飞絮滚轻尘。", "忙杀看花人。"]
   };
-  var state = { poems: [], activeScenario: "山水文旅", current: sample, imageSrc: "" };
+  var state = { poems: [], activeScenario: "山水文旅", current: sample };
+  var poetryKeyStorage = "poetry_api_key";
+  var imageKeyStorage = "poetry_image_api_key";
   function $(id) { return document.getElementById(id); }
   function appBase() {
     var p = window.location.pathname || "/";
@@ -344,7 +447,6 @@
   var BASE = appBase();
   function apiURL(path) { return path && path.charAt(0) === "/" ? BASE + path : path; }
   function apiKey() { return ($("apiKey").value || "").trim(); }
-  function imageAPIKey() { return ($("imageApiKey").value || "").trim(); }
   function toast(msg) {
     var el = $("toast");
     el.textContent = msg;
@@ -368,51 +470,64 @@
     return [d, a].filter(Boolean).join(" · ") || "作者待考";
   }
   function poemType(poem) { return poem && poem.type && poem.type.name || "诗词结果"; }
-  function selectedScenarioFromQuery() {
-    var q = ($("query").value || "").trim();
-    return scenarios.find(function (s) { return s.q === q; }) || null;
-  }
-  function updateQueryPolicy() {
-    var active = selectedScenarioFromQuery();
-    state.activeScenario = active ? active.label : "";
-    $("queryPolicy").textContent = active
-      ? "已套用「" + active.label + "」；搜索仍以输入框当前文字为准。"
-      : "当前为自定义输入；热门场景不会额外叠加，搜索以输入框当前文字为准。";
-  }
   function setKeyStatus(on, text) {
     var el = $("keyStatus");
     el.classList.toggle("off", !on);
     el.innerHTML = '<i class="dot"></i>' + text;
   }
+  function imageApiKey() { return (($("imageApiKey") && $("imageApiKey").value) || "").trim(); }
   function setImageKeyStatus(on, text) {
     var el = $("imageKeyStatus");
+    if (!el) return;
     el.classList.toggle("off", !on);
     el.innerHTML = '<i class="dot"></i>' + text;
+  }
+  function saveImageKey(silent) {
+    var key = imageApiKey();
+    if (key) {
+      localStorage.setItem(imageKeyStorage, key);
+      setImageKeyStatus(true, "已保存");
+      if (!silent) toast("生图 Key 已保存到本机");
+      return key;
+    }
+    localStorage.removeItem(imageKeyStorage);
+    setImageKeyStatus(false, "未保存");
+    if (!silent) toast("请先粘贴 Qanlo 生图 API Key");
+    return "";
+  }
+  function clearImageKey() {
+    localStorage.removeItem(imageKeyStorage);
+    if ($("imageApiKey")) $("imageApiKey").value = "";
+    setImageKeyStatus(false, "未保存");
+    toast("已清除本机生图 Key");
+  }
+  function requireImageKey() {
+    var typedKey = imageApiKey();
+    var key = typedKey || (localStorage.getItem(imageKeyStorage) || "").trim();
+    if (!key) {
+      var msg = "请先在左侧填写并保存 Qanlo 生图 API Key";
+      previewMessage("缺少生图 Key", msg + "；在 qanlo.com 创建后复制到这里。", "error");
+      toast(msg);
+      throw new Error("missing image api key");
+    }
+    if (typedKey && typedKey !== localStorage.getItem(imageKeyStorage)) {
+      localStorage.setItem(imageKeyStorage, typedKey);
+    }
+    setImageKeyStatus(true, "已保存");
+    return key;
   }
   function saveKey() {
     var key = apiKey();
     if (key) {
-      localStorage.setItem("poetry_api_key", key);
+      localStorage.setItem(poetryKeyStorage, key);
       toast("Key 已保存到本机");
       refreshStatus();
     } else {
-      localStorage.removeItem("poetry_api_key");
+      localStorage.removeItem(poetryKeyStorage);
       setKeyStatus(false, "未配置");
       $("todayUsage").textContent = "--";
       $("dailyLimit").textContent = "--";
       toast("已清除本机 Key");
-    }
-  }
-  function saveImageKey() {
-    var key = imageAPIKey();
-    if (key) {
-      localStorage.setItem("poetry_image_api_key", key);
-      setImageKeyStatus(true, "已保存");
-      toast("生图 API Key 已保存到本机");
-    } else {
-      localStorage.removeItem("poetry_image_api_key");
-      setImageKeyStatus(false, "未配置");
-      toast("已清除本机生图 Key");
     }
   }
   async function fetchJSON(path, opt) {
@@ -430,7 +545,7 @@
       toast("请先填写已开通的 Key；本页不会自动创建免费 Key");
       throw new Error("missing api key");
     }
-    localStorage.setItem("poetry_api_key", key);
+    localStorage.setItem(poetryKeyStorage, key);
     return key;
   }
   async function refreshStatus() {
@@ -473,40 +588,9 @@
   }
   function promptText(poem) {
     poem = poem || state.current || sample;
-    var title = poem.title || "诗词";
-    var author = poemAuthor(poem);
-    var lines = normalizeLines(poem.content).filter(Boolean);
-    var style = $("style").value;
-    var ratio = $("ratio").value;
-    var mood = lines.slice(0, 4).join("，");
-    var poemText = ["《" + title + "》", author].concat(lines).join("\n");
-    if (poemText.length > 680) poemText = poemText.slice(0, 680) + "\n（长诗只题写以上核心诗句，保留完整书法气韵）";
-    var showText = !$("poemTextToggle") || $("poemTextToggle").checked;
-    var styleGuide = {
-      "古风水墨": "淡墨山水、宣纸肌理、远山烟岚、江水留白、笔墨晕染自然，整体是一幅完整水墨画。",
-      "宋画工笔": "宋画设色、细腻线描、矿物色轻染、器物与人物考究，画面像绢本工笔诗意画。",
-      "新中式海报": "新中式留白构图、古画质感、克制排版，但画面仍保持手绘国画气息。",
-      "小红书封面": "适合社媒封面阅读的古风画面，主体清楚、留白干净，但不要变成现代贴纸海报。"
-    }[style] || "中国古典诗意绘画，留白充足，笔墨统一。";
-    var parts = [
-      "创作一幅" + style + "诗画作品，" + ratio + "，主题取自《" + title + "》。",
-      "诗意依据：" + (mood || "古典诗意、山水留白、清雅含蓄") + "。",
-      "画面基调：" + styleGuide,
-      "整体要求：必须像一张真实完成的画，山水、人物、器物、纸纹、题跋属于同一张画的同一笔触，不要像背景图上后贴图案。",
-      "禁止出现：矢量图标、拼贴感装饰、PPT 插画、现代 UI 面板、白底字卡、边框模板、贴纸、二维码、水印、logo。"
-    ];
-    if (showText) {
-      parts.push("文字入画要求：把诗词原文写成画中题诗/题跋，而不是字幕。题诗应位于左侧或右侧留白处，竖排中文书法，从上到下书写，列序从右到左；题名和作者作小字落款，正文作主题诗，可加一枚朱红钤印。");
-      parts.push("书法质感：墨色有浓淡、飞白和轻微渗化，文字边缘随宣纸纹理自然起伏，与画面光影和纸色融合；不要印刷字体，不要机械排版，不要像后期叠字。");
-      parts.push("文字清晰度优先级：优先保证标题、作者和前四句清楚可辨；若篇幅过长，可只题写核心诗句，避免拥挤。");
-      parts.push("画中题诗文字如下：\n" + poemText);
-    } else {
-      parts.push("画面不要出现任何文字、logo、水印、现代字幕或 UI 元素。只保留纯画面。");
-    }
-    parts.push("最终观感：诗情画意合一，古雅克制，高清细腻，可直接作为诗词意境图收藏或下载。");
-    return parts.join("\n");
+    var lines = normalizeLines(poem.content).slice(0, 3).join("，");
+    return $("style").value + "，" + $("ratio").value + "，以《" + (poem.title || "诗词") + "》为意境，画面包含：" + lines + "。中国古典审美，留白构图，柔和光影，细腻纸张肌理，无文字水印。";
   }
-
   function buildPrompt() {
     var text = promptText(state.current || sample);
     $("promptOut").value = text;
@@ -573,76 +657,12 @@
   }
   function previewMessage(title, message, mode) {
     $("preview").classList.remove("has-image");
-    state.imageSrc = "";
-    setDownloadReady(false);
     var cls = mode === "error" ? "empty-img error-img" : (mode === "loading" ? "empty-img loading-img" : "empty-img");
-    $("preview").innerHTML = '<div class="' + cls + '"><div class="pic">' + (mode === "loading" ? "&#29983;" : "&#30011;") + '</div><h2>' + escapeHTML(title) + '</h2><p>' + escapeHTML(message).replace(/\n/g, "<br>") + '</p></div>';
+    $("preview").innerHTML = '<div class="ink-bg" aria-hidden="true"><div class="mountains"></div><div class="river"></div><div class="boat"></div><div class="bamboo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="' + cls + '"><div class="pic">' + (mode === "loading" ? "生" : "画") + '</div><h2>' + escapeHTML(title) + '</h2><p>' + escapeHTML(message).replace(/\n/g, "<br>") + '</p></div>';
   }
   function renderGeneratedImage(src) {
-    state.imageSrc = src;
     $("preview").classList.add("has-image");
     $("preview").innerHTML = '<img class="generated-img" src="' + escapeHTML(src) + '" alt="生成的诗词意境图">';
-    setDownloadReady(true);
-  }
-  function setDownloadReady(ready) {
-    var btn = $("downloadImage");
-    if (!btn) return;
-    btn.disabled = !ready;
-    btn.title = ready ? "下载当前生成图片" : "生成图片后才可下载";
-    btn.setAttribute("aria-disabled", ready ? "false" : "true");
-  }
-  function imageExtensionFromSrc(src) {
-    var dataMatch = /^data:image\/([^;]+)/i.exec(src || "");
-    if (dataMatch) {
-      var mimeExt = dataMatch[1].toLowerCase();
-      if (mimeExt === "jpeg") return "jpg";
-      if (/^[a-z0-9]+$/.test(mimeExt)) return mimeExt;
-    }
-    try {
-      var path = new URL(src, window.location.href).pathname || "";
-      var extMatch = /\.([a-z0-9]{3,5})$/i.exec(path);
-      if (extMatch) return extMatch[1].toLowerCase() === "jpeg" ? "jpg" : extMatch[1].toLowerCase();
-    } catch (_) {}
-    return "png";
-  }
-  function safeDownloadName(ext) {
-    var cleanExt = (ext || "png").replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
-    return (("诗画-" + ($("poemTitle").textContent || "作品")).replace(/[\\/:*?"<>|]/g, "-").slice(0, 80) || "诗画作品") + "." + cleanExt;
-  }
-  function triggerDownload(href, name) {
-    var a = document.createElement("a");
-    a.href = href;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-  async function downloadImage() {
-    if (!state.imageSrc) {
-      setDownloadReady(false);
-      toast("还没有可下载的图片，请先生成图片");
-      return;
-    }
-    var ext = imageExtensionFromSrc(state.imageSrc);
-    var name = safeDownloadName(ext);
-    if (/^(data:|blob:)/i.test(state.imageSrc)) {
-      triggerDownload(state.imageSrc, name);
-      toast("已开始下载图片");
-      return;
-    }
-    try {
-      var res = await fetch(state.imageSrc, { mode: "cors", cache: "no-store" });
-      if (!res.ok) throw new Error("图片文件读取失败");
-      var blob = await res.blob();
-      var blobExt = (blob.type && blob.type.indexOf("image/") === 0) ? imageExtensionFromSrc("data:" + blob.type + ";base64,") : ext;
-      var url = URL.createObjectURL(blob);
-      triggerDownload(url, safeDownloadName(blobExt));
-      setTimeout(function () { URL.revokeObjectURL(url); }, 1200);
-      toast("已开始下载图片");
-    } catch (_) {
-      window.open(state.imageSrc, "_blank", "noopener");
-      toast("浏览器限制直接下载时，已打开图片新窗口，可右键保存");
-    }
   }
   function renderRecs(poems) {
     var list = (poems && poems.length ? poems : [
@@ -691,8 +711,8 @@
   }
   async function generateImage() {
     var key = requireKey();
+    var imageKey = requireImageKey();
     var prompt = buildPrompt();
-    var imgKey = imageAPIKey();
     var btn = $("promptBtn");
     var oldText = btn.textContent;
     btn.disabled = true;
@@ -701,11 +721,8 @@
     try {
       var json = await fetchJSON("/api/v1/images/generate", {
         method: "POST",
-        headers: Object.assign(
-          { "X-API-Key": key, "Content-Type": "application/json" },
-          imgKey ? { "X-Image-API-Key": imgKey } : {}
-        ),
-        body: JSON.stringify({ prompt: prompt, size: imageSize() })
+        headers: { "X-API-Key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt, size: imageSize(), image_api_key: imageKey })
       });
       var data = json.data || json;
       var src = data.image_url || (data.b64_json ? ("data:" + (data.mime_type || "image/png") + ";base64," + data.b64_json) : "");
@@ -761,8 +778,8 @@
     }
     navigator.clipboard.writeText(text).then(function () { toast(msg || "已复制"); }, function () { toast("复制失败，请手动复制"); });
   }
+  function openImage() { window.open("/image-playground", "_blank", "noopener"); }
   function renderChips() {
-    updateQueryPolicy();
     var box = $("chips");
     box.innerHTML = scenarios.map(function (s) {
       return '<button class="chip ' + (s.label === state.activeScenario ? "active" : "") + '" data-label="' + s.label + '" type="button">' + s.label + '</button>';
@@ -773,9 +790,7 @@
         var item = scenarios.find(function (s) { return s.label === state.activeScenario; });
         $("query").value = item ? item.q : "";
         updateCounter();
-        updateQueryPolicy();
         renderChips();
-        toast("已填入热门场景：" + state.activeScenario);
       };
     });
   }
@@ -783,33 +798,27 @@
   $("saveKey").onclick = saveKey;
   $("copyKey").onclick = function () { if (apiKey()) copyText(apiKey(), "Key 已复制"); };
   $("apiKey").addEventListener("change", saveKey);
-  $("saveImageKey").onclick = saveImageKey;
-  $("copyImageKey").onclick = function () { if (imageAPIKey()) copyText(imageAPIKey(), "生图 Key 已复制"); };
-  $("imageApiKey").addEventListener("change", saveImageKey);
-  $("query").addEventListener("input", function () {
-    var before = state.activeScenario;
-    updateCounter();
-    updateQueryPolicy();
-    if (before !== state.activeScenario) renderChips();
-  });
+  $("saveImageKey").onclick = function () { saveImageKey(false); };
+  $("clearImageKey").onclick = clearImageKey;
+  $("imageApiKey").addEventListener("change", function () { saveImageKey(true); });
+  $("query").addEventListener("input", updateCounter);
   $("searchBtn").onclick = searchPoems;
   $("promptBtn").onclick = generateImage;
   $("copyPoem").onclick = function () { copyText($("poemTitle").textContent + "\n" + $("poemAuthor").textContent + "\n" + $("poemContent").textContent, "诗词已复制"); };
   $("clearResult").onclick = function () { renderPoem(sample); $("queryStatus").textContent = "等待查询"; toast("结果已重置为示例"); };
   $("copyPrompt").onclick = function () { copyText($("promptOut").value, "提示词已复制"); };
-  $("downloadImage").onclick = downloadImage;
+  $("copyPromptBottom").onclick = $("copyPrompt").onclick;
+  $("openImage").onclick = openImage;
+  $("openImageBottom").onclick = openImage;
   $("bindQanlo").onclick = bindQanlo;
   $("rechargeQanlo").onclick = rechargeQanlo;
   $("shuffleRecs").onclick = function () { renderRecs(state.poems.slice().reverse()); toast("已换一批"); };
   $("style").onchange = buildPrompt;
   $("ratio").onchange = buildPrompt;
-  $("promptToggle").onchange = buildPrompt;
-  $("poemTextToggle").onchange = buildPrompt;
   window.addEventListener("resize", schedulePoemFit);
-  $("apiKey").value = localStorage.getItem("poetry_api_key") || "";
-  $("imageApiKey").value = localStorage.getItem("poetry_image_api_key") || "";
-  setImageKeyStatus(Boolean(imageAPIKey()), imageAPIKey() ? "已保存" : "未配置");
-  previewMessage("尚未生成图片", "输入诗词并点击「生成图片」后，\n图片会直接显示在这个区域。");
+  $("apiKey").value = localStorage.getItem(poetryKeyStorage) || "";
+  $("imageApiKey").value = localStorage.getItem(imageKeyStorage) || "";
+  setImageKeyStatus(!!$("imageApiKey").value, $("imageApiKey").value ? "已保存" : "未保存");
   renderChips();
   updateCounter();
   renderPoem(sample);

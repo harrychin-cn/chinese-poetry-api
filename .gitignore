@@ -56,4 +56,3 @@ tests/load/*.har
 .codex-temp/
 backups/
 designs/
-output/

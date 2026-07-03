@@ -372,8 +372,7 @@ $docsPage = Invoke-SmokeTextRequest -Method GET -Path "/docs" -Step "docs page" 
     'href="openapi.yaml"',
     "POST /api/v1/keys",
     "GET /api/v1/knowledge/recall",
-    "POST /api/v1/images/generate",
-    "POST /api/v1/works/:id/images/generate"
+    "POST /api/v1/images/generate"
 )
 $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "openapi yaml" -Contains @(
     "openapi: 3.0.3",
@@ -382,8 +381,6 @@ $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "open
     "/api/v1/billing/status:",
     "/api/v1/knowledge/recall:",
     "/api/v1/images/generate:",
-    "/api/v1/works/{id}/images/generate:",
-    "/api/v1/works/{id}/media-assets:",
     "X-API-Key",
     "X-Admin-Token"
 )
@@ -391,15 +388,10 @@ $consolePage = Invoke-SmokeTextRequest -Method GET -Path "/console" -Step "conso
     "AI 诗词知识库 API 控制台",
     "诗画工坊",
     "本页不会自动创建免费 Key",
-    "生图 API Key",
     "Qanlo 绑定 / 充值",
     "AI 知识库召回",
     "生成图片",
-    "画面上显示诗句文字",
-    "下载图片",
-    "console-placeholder-bg.png",
-    "画中题诗",
-    "不要像背景图上后贴图案",
+    "在线生图备用",
     "/api/v1/images/generate"
 )
 $pricingPage = Invoke-SmokeTextRequest -Method GET -Path "/pricing" -Step "pricing page" -Contains @(
@@ -564,101 +556,6 @@ $feedbackBody = [ordered]@{
 $feedback = Invoke-SmokeRequest -Method POST -Path "/api/v1/feedback" -Step "feedback" -Headers $apiHeaders -Body $feedbackBody -ExpectedStatus @(201)
 Assert-Field -Step "feedback" -Value $feedback.Json.data.id -Field "data.id"
 Write-Host ("      feedback id={0}, status={1}" -f $feedback.Json.data.id, $feedback.Json.data.status)
-
-Wait-APIKeyRefill
-$workStamp = Get-Date -Format "yyyyMMddHHmmss"
-$workNonce = ([guid]::NewGuid().ToString("N")).Substring(0, 8)
-$workBody = [ordered]@{
-    title               = "烟测原创诗 " + $workNonce
-    work_type           = "poem"
-    content             = "晴岚" + $workNonce + "一径香`n溪声" + $workNonce + "入斜阳`n烟测编号" + $workStamp
-    description         = "商业冒烟测试创建的原创作品。"
-    original_commitment = $true
-    license_accepted    = $true
-    image_prompt        = "古风水墨，小桥流水，雨后初晴"
-    publish             = $true
-    change_note         = "smoke create"
-}
-$workCreate = Invoke-SmokeRequest -Method POST -Path "/api/v1/works" -Step "original work create" -Headers $apiHeaders -Body $workBody -ExpectedStatus @(201)
-Assert-Field -Step "original work create" -Value $workCreate.Json.data.id -Field "data.id"
-Assert-Field -Step "original work create" -Value $workCreate.Json.data.work_code -Field "data.work_code"
-if ($workCreate.Json.data.status -ne "published" -or $workCreate.Json.data.visibility -ne "public") {
-    throw "[original work create] expected published public work"
-}
-$workID = [int64]$workCreate.Json.data.id
-$workCode = [string]$workCreate.Json.data.work_code
-Write-Host ("      original work id={0}, code={1}, status={2}" -f $workID, $workCode, $workCreate.Json.data.status)
-
-Wait-APIKeyRefill
-$workList = Invoke-SmokeRequest -Method GET -Path "/api/v1/works?limit=5" -Step "original work list" -Headers $apiHeaders -ExpectedStatus @(200)
-if ($null -eq $workList.Json.data.items -or (Get-ItemCount $workList.Json.data.items) -lt 1) {
-    throw "[original work list] expected at least one work"
-}
-
-Wait-APIKeyRefill
-$workGet = Invoke-SmokeRequest -Method GET -Path ("/api/v1/works/" + $workID) -Step "original work get" -Headers $apiHeaders -ExpectedStatus @(200)
-if ($workGet.Json.data.work_code -ne $workCode) {
-    throw "[original work get] work_code mismatch"
-}
-
-Wait-APIKeyRefill
-$workUpdateBody = [ordered]@{
-    content     = "晴岚" + $workNonce + "一径香`n溪声" + $workNonce + "入斜阳`n远山" + $workNonce + "水云乡`n烟测编号" + $workStamp
-    change_note = "smoke update content"
-}
-$workUpdate = Invoke-SmokeRequest -Method PATCH -Path ("/api/v1/works/" + $workID) -Step "original work update" -Headers $apiHeaders -Body $workUpdateBody -ExpectedStatus @(200)
-if ([int]$workUpdate.Json.data.version -lt 2) {
-    throw "[original work update] expected version >= 2"
-}
-Write-Host ("      original work updated version={0}" -f $workUpdate.Json.data.version)
-
-Wait-APIKeyRefill
-$workVersions = Invoke-SmokeRequest -Method GET -Path ("/api/v1/works/" + $workID + "/versions") -Step "original work versions" -Headers $apiHeaders -ExpectedStatus @(200)
-if ($null -eq $workVersions.Json.data.items -or (Get-ItemCount $workVersions.Json.data.items) -lt 2) {
-    throw "[original work versions] expected at least two versions"
-}
-
-Wait-APIKeyRefill
-$workLicense = Invoke-SmokeRequest -Method GET -Path ("/api/v1/works/" + $workID + "/license-acceptances") -Step "original work license records" -Headers $apiHeaders -ExpectedStatus @(200)
-if ($null -eq $workLicense.Json.data.items -or (Get-ItemCount $workLicense.Json.data.items) -lt 1) {
-    throw "[original work license records] expected at least one license record"
-}
-
-Wait-APIKeyRefill
-$workReport = Invoke-SmokeRequest -Method GET -Path ("/api/v1/works/" + $workID + "/plagiarism-report") -Step "original work plagiarism report" -Headers $apiHeaders -ExpectedStatus @(200)
-Assert-Field -Step "original work plagiarism report" -Value $workReport.Json.data.risk_level -Field "data.risk_level"
-if ($workReport.Json.data.risk_level -notin @("low", "medium")) {
-    throw "[original work plagiarism report] expected low/medium risk for unique smoke work"
-}
-
-$workImageDryRunBody = [ordered]@{
-    style   = "古风水墨"
-    size    = "1024x1024"
-    dry_run = $true
-}
-$workImageDryRun = Invoke-SmokeRequest -Method POST -Path ("/api/v1/works/" + $workID + "/images/generate") -Step "work image dry run" -Headers $apiHeaders -Body $workImageDryRunBody -ExpectedStatus @(200)
-if ($workImageDryRun.Json.data.dry_run -ne $true -or $workImageDryRun.Json.data.job.status -ne "prompt_ready") {
-    throw "[work image dry run] expected dry_run prompt_ready job"
-}
-if ([string]$workImageDryRun.Json.data.prompt.prompt -notlike "*画中题诗*") {
-    throw "[work image dry run] prompt should mention 画中题诗"
-}
-
-$workImageJobs = Invoke-SmokeRequest -Method GET -Path ("/api/v1/works/" + $workID + "/image-jobs") -Step "work image jobs" -Headers $apiHeaders -ExpectedStatus @(200)
-if ($null -eq $workImageJobs.Json.data.items -or (Get-ItemCount $workImageJobs.Json.data.items) -lt 1) {
-    throw "[work image jobs] expected at least one dry-run job"
-}
-
-$workMediaAssets = Invoke-SmokeRequest -Method GET -Path ("/api/v1/works/" + $workID + "/media-assets?asset_type=image") -Step "work media assets" -Headers $apiHeaders -ExpectedStatus @(200)
-if ($null -eq $workMediaAssets.Json.data.items) {
-    throw "[work media assets] expected items array"
-}
-
-$publicWork = Invoke-SmokeRequest -Method GET -Path ("/api/v1/public/works/" + $workCode) -Step "public original work" -ExpectedStatus @(200)
-if ($publicWork.Json.data.work_code -ne $workCode -or $publicWork.Json.data.status -ne "published") {
-    throw "[public original work] expected published public work"
-}
-Write-Host "      original works API create/list/get/update/version/license/image-dry-run/public flow passed."
 
 if (-not [string]::IsNullOrWhiteSpace($AdminToken)) {
     $adminKeys = Invoke-SmokeRequest -Method GET -Path "/api/v1/admin/api-keys" -Step "admin api keys" -Headers $adminHeaders -ExpectedStatus @(200)

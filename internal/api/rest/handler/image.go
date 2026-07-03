@@ -17,8 +17,8 @@ import (
 	"github.com/palemoky/chinese-poetry-api/internal/database"
 )
 
-// ImageHandler proxies optional server-side image generation to the configured
-// OpenAI-compatible image gateway. The gateway API key is never exposed to the browser.
+// ImageHandler proxies image generation to the configured OpenAI-compatible
+// gateway. The gateway API key is supplied by the user per request.
 type ImageHandler struct {
 	repo   *database.Repository
 	cfg    config.ImageConfig
@@ -43,7 +43,7 @@ func NewImageHandler(repo *database.Repository, cfg config.ImageConfig) *ImageHa
 type generateImageRequest struct {
 	Prompt      string `json:"prompt"`
 	Size        string `json:"size"`
-	ImageAPIKey string `json:"image_api_key,omitempty"`
+	ImageAPIKey string `json:"image_api_key"`
 }
 
 type openAIImageRequest struct {
@@ -81,6 +81,16 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 		return
 	}
 
+	imageAPIKey := strings.TrimSpace(req.ImageAPIKey)
+	if imageAPIKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "image api key required",
+			"code":    "image_api_key_required",
+			"message": "请先在页面填写并保存 Qanlo 生图 API Key，再生成图片。",
+		})
+		return
+	}
+
 	prompt := strings.TrimSpace(req.Prompt)
 	if prompt == "" {
 		respondError(c, http.StatusBadRequest, "prompt is required")
@@ -88,31 +98,6 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 	}
 	if len([]rune(prompt)) > 3000 {
 		respondError(c, http.StatusBadRequest, "prompt is too long")
-		return
-	}
-	if !h.cfg.Enabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "image generation is disabled",
-			"code":    "image_generation_disabled",
-			"message": "server-side image generation is disabled; enable IMAGE_GENERATION_ENABLED before calling the upstream image gateway",
-		})
-		return
-	}
-
-	imageGatewayKey := strings.TrimSpace(h.cfg.APIKey)
-	requestImageKey := strings.TrimSpace(c.GetHeader("X-Image-API-Key"))
-	if requestImageKey == "" {
-		requestImageKey = strings.TrimSpace(req.ImageAPIKey)
-	}
-	if requestImageKey != "" {
-		imageGatewayKey = requestImageKey
-	}
-	if imageGatewayKey == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "image generation is not configured",
-			"code":    "image_config_missing",
-			"message": "服务器还没有配置 IMAGE_API_KEY，也没有在本次请求中提供生图 API Key；因此不会消耗生图额度。",
-		})
 		return
 	}
 
@@ -155,7 +140,7 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 		respondError(c, http.StatusInternalServerError, "failed to build upstream request")
 		return
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+imageGatewayKey)
+	httpReq.Header.Set("Authorization", "Bearer "+imageAPIKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
@@ -271,13 +256,6 @@ func normalizeOutputFormat(format string) string {
 	default:
 		return "png"
 	}
-}
-
-func normalizeImageCostUnits(costUnits int) int {
-	if costUnits <= 0 {
-		return 1
-	}
-	return costUnits
 }
 
 func safeUpstreamMessage(body []byte) string {

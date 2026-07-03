@@ -79,18 +79,15 @@ type QanloConfig struct {
 	CallbackSecret string `mapstructure:"callback_secret"`
 }
 
-// ImageConfig holds optional image generation gateway defaults. Server-side
-// image generation is disabled by default; when enabled, it can use either a
-// site-wide IMAGE_API_KEY or a request-scoped X-Image-API-Key from the console.
+// ImageConfig holds image generation gateway defaults. Users provide the image
+// API key per request from the console page; it is not a site-wide server key.
 type ImageConfig struct {
-	Enabled        bool   `mapstructure:"enabled"`
 	APIKey         string `mapstructure:"api_key"`
 	BaseURL        string `mapstructure:"base_url"`
 	Model          string `mapstructure:"model"`
 	Quality        string `mapstructure:"quality"`
 	OutputFormat   string `mapstructure:"output_format"`
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
-	CostUnits      int    `mapstructure:"cost_units"`
 }
 
 // GraphQLConfig holds GraphQL configuration
@@ -165,14 +162,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("qanlo.agent_model", "deepseek-v4-flash")
 	v.SetDefault("qanlo.return_url", "http://localhost:1279/api/v1/billing/qanlo/callback")
 	v.SetDefault("qanlo.callback_secret", "")
-	v.SetDefault("image.enabled", false)
 	v.SetDefault("image.api_key", "")
 	v.SetDefault("image.base_url", "https://qanlo.com/openai/v1")
 	v.SetDefault("image.model", "gpt-image-2")
 	v.SetDefault("image.quality", "high")
 	v.SetDefault("image.output_format", "png")
 	v.SetDefault("image.timeout_seconds", 180)
-	v.SetDefault("image.cost_units", 1)
 	v.SetDefault("graphql.playground", false)
 	v.SetDefault("graphql.introspection", true)
 	v.SetDefault("graphql.complexity_limit", 1000)
@@ -291,16 +286,8 @@ func bindEnvVars(v *viper.Viper) {
 		v.Set("qanlo.callback_secret", secret)
 	}
 
-	// Optional image generation gateway defaults. IMAGE_GENERATION_ENABLED is
-	// the hard backend switch; request-scoped image keys still require it.
-	if enabled := os.Getenv("IMAGE_GENERATION_ENABLED"); enabled != "" {
-		v.Set("image.enabled", enabled == "true")
-	} else if enabled := os.Getenv("IMAGE_ENABLED"); enabled != "" {
-		v.Set("image.enabled", enabled == "true")
-	}
-	if apiKey := os.Getenv("IMAGE_API_KEY"); apiKey != "" {
-		v.Set("image.api_key", apiKey)
-	}
+	// Optional image generation gateway defaults. Users paste their own Qanlo
+	// image key in the console page; no site-wide image key is read from env.
 	if baseURL := os.Getenv("IMAGE_BASE_URL"); baseURL != "" {
 		v.Set("image.base_url", baseURL)
 	}
@@ -316,11 +303,6 @@ func bindEnvVars(v *viper.Viper) {
 	if timeoutSeconds := os.Getenv("IMAGE_TIMEOUT_SECONDS"); timeoutSeconds != "" {
 		if value, err := strconv.Atoi(timeoutSeconds); err == nil {
 			v.Set("image.timeout_seconds", value)
-		}
-	}
-	if costUnits := os.Getenv("IMAGE_COST_UNITS"); costUnits != "" {
-		if value, err := strconv.Atoi(costUnits); err == nil {
-			v.Set("image.cost_units", value)
 		}
 	}
 
@@ -407,9 +389,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Image.TimeoutSeconds <= 0 {
 		return fmt.Errorf("image timeout_seconds must be positive")
-	}
-	if c.Image.CostUnits < 0 {
-		return fmt.Errorf("image cost_units cannot be negative")
 	}
 
 	return nil

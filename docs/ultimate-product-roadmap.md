@@ -384,12 +384,9 @@ PCQF-2026-00000001
 - 图片模型配置：
 
 ```text
-IMAGE_GENERATION_ENABLED=true
-IMAGE_API_KEY=sk-...
 IMAGE_BASE_URL
 IMAGE_MODEL=gpt-image-2
-IMAGE_COST_UNITS=1
-也可让用户在生图页面填写自己的 Qanlo 生图 API Key，通过 X-Image-API-Key 按次传入
+用户在生图页面填写自己的 Qanlo 生图 API Key
 ```
 
 - 生成图片；
@@ -402,8 +399,6 @@ IMAGE_COST_UNITS=1
 - `media_assets`
 - `image_generation_jobs`
 - `image_prompts`
-
-当前作品级生图任务已记录 `cached` 和 `cost_units`：`dry_run` / 缓存命中成本为 0，真实上游生成按 `IMAGE_COST_UNITS` 记本地成本单位；默认后台开关关闭，只有 `IMAGE_GENERATION_ENABLED=true` 才访问上游。
 
 阶段结束标准：
 
@@ -588,7 +583,7 @@ blockchain_anchors
 2. 新增用户原创作品库。
 3. 新增开放版权协议确认。
 4. 新增基础查重。
-5. 把当前“意境图 Prompt”升级为作品级生图能力，并补齐默认关闭的后台开关、缓存复用、任务成本记录。
+5. 把当前“意境图 Prompt”升级为作品级生图能力。
 6. 再做积分/余额消耗。
 7. 最后做交易、音乐、区块链。
 
