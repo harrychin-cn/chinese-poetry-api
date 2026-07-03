@@ -34,6 +34,7 @@ tags:
   - name: Billing
   - name: Usage
   - name: Feedback
+  - name: Works
   - name: Admin
   - name: Enrichment
 security: []
@@ -540,6 +541,200 @@ paths:
         - ApiKeyAuth: []
       requestBody:
         $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/works:
+    post:
+      tags:
+        - Works
+      summary: Create a user original work
+      operationId: createOriginalWork
+      description: Creates a draft or published original poem/ci/qu/fu. Publishing requires original_commitment=true and license_accepted=true; high-risk plagiarism checks keep the work in review_required instead of publishing.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "201":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      tags:
+        - Works
+      summary: List works owned by the current API key
+      operationId: listOriginalWorks
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, draft, published, review_required]
+            default: all
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/works/{id}:
+    get:
+      tags:
+        - Works
+      summary: Get one owned original work
+      operationId: getOriginalWork
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "404":
+          $ref: "#/components/responses/BadRequest"
+    patch:
+      tags:
+        - Works
+      summary: Update one owned original work
+      operationId: updateOriginalWork
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/works/{id}/publish:
+    post:
+      tags:
+        - Works
+      summary: Publish an owned work after license confirmation
+      operationId: publishOriginalWork
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/works/{id}/versions:
+    get:
+      tags:
+        - Works
+      summary: List saved versions for an owned work
+      operationId: listOriginalWorkVersions
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/works/{id}/license-acceptances:
+    get:
+      tags:
+        - Works
+      summary: List license acceptance records for an owned work
+      operationId: listOriginalWorkLicenseAcceptances
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/works/{id}/plagiarism-report:
+    get:
+      tags:
+        - Works
+      summary: Get the latest plagiarism/originality report for an owned work
+      operationId: getOriginalWorkPlagiarismReport
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "404":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/works/{id}/media-assets:
+    get:
+      tags:
+        - Works
+      summary: List generated media assets for an owned work
+      operationId: listWorkMediaAssets
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+        - name: asset_type
+          in: query
+          schema:
+            type: string
+            enum: [all, image]
+            default: all
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/works/{id}/image-jobs:
+    get:
+      tags:
+        - Works
+      summary: List image-generation jobs for an owned work
+      operationId: listWorkImageJobs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/works/{id}/images/generate:
+    post:
+      tags:
+        - Works
+        - Images
+      summary: Generate or dry-run a work-aware poetry painting image
+      operationId: generateWorkImage
+      description: dry_run=true only prepares and stores the prompt/job, without calling the image gateway or consuming quota. Real generation stores a media asset and one image-generation job. Identical work/prompt/model/size requests reuse a cached image asset by default; set force_regenerate=true to bypass cache.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          description: Image gateway key is missing
+  /api/v1/public/works/{code}:
+    get:
+      tags:
+        - Works
+      summary: Get a public published work by platform work code
+      operationId: getPublicOriginalWork
+      security: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/OK"

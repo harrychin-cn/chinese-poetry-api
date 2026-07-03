@@ -101,6 +101,23 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 		return
 	}
 
+	imageGatewayKey := strings.TrimSpace(h.cfg.APIKey)
+	requestImageKey := strings.TrimSpace(c.GetHeader("X-Image-API-Key"))
+	if requestImageKey == "" {
+		requestImageKey = strings.TrimSpace(req.ImageAPIKey)
+	}
+	if requestImageKey != "" {
+		imageGatewayKey = requestImageKey
+	}
+	if imageGatewayKey == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "image generation is not configured",
+			"code":    "image_config_missing",
+			"message": "服务器还没有配置 IMAGE_API_KEY，也没有在本次请求中提供生图 API Key；因此不会消耗生图额度。",
+		})
+		return
+	}
+
 	todayUsage, err := h.repo.GetAPIKeyUsageCount(apiKey.ID, time.Now().UTC().Format("2006-01-02"))
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "failed to read image usage")

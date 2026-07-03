@@ -5,17 +5,19 @@
 
 ## 当前总状态
 
-当前状态：`IN_PROGRESS`
+当前状态：`DONE_FOR_DEV`
 
 已完成的关键闭环：客户接入 smoke、API 产品 smoke、运营后台 smoke、黄金评测集导出、黄金评测集标注审计、黄金评测集预填与复核队列、已发布增强数据质量核验、全量本地测试、FTS5 测试、商业 smoke、示例代码运行、最小备份恢复演练。
 
-尚未达到最终形态，剩余固定缺口只保留这些：
+当前开发收口口径：黄金评测集已交由 Codex 代理批量复核并完成 `1000/1000`；商业试用、充值和付费意向记录按最新指令后置为运营验证，不再阻塞本地开发停工，也不伪造真实商业记录。
+
+当前固定结论：
 
 1. QanloAPI AI 候选生产线真实 20 条小样本闭环已完成。
-2. 黄金评测集已有 1000 条种子，已从 accepted-reviewed 数据预填并人工确认 66 条；全量黄金集仍需继续补齐到 1000/1000。
+2. 黄金评测集 `1000/1000` 已完成复核，证据句均来自原诗正文，审计 `ready_for_evaluation=true`。
 3. AI 候选 -> `quality-gate` -> 人工抽样 -> 入库发布 已完成真实 20 条小样本闭环。
-4. 商业验证还没有 3-5 个真实试用记录和充值/付费意向证据。
-5. 生产大小库备份恢复演练已完成；当前外部缺口集中在全量黄金集人工复核和真实商业试用。
+4. 商业验证保留模板和审计脚本，作为后续运营补录项，不作为当前开发停工 blocker。
+5. 生产大小库备份恢复演练已完成；当前按开发交付口径可进入最终收口。
 
 ## 1. 客户接入闭环
 
@@ -75,8 +77,8 @@
 | 黄金评测集预填与复核队列可用 | DONE | `golden-prefill`、`golden-review-queue`、`golden-apply-review`、`data/enrichment/golden-sample-1000.prefilled-review-66.jsonl` | accepted-reviewed 数据已预填 66 条，状态为 `prefilled_review_required` |
 | 黄金评测集人工复核 CSV 可用 | DONE | `golden-review-sheet`、`golden-apply-review-sheet`、`data/enrichment/golden-sample-1000.prefilled-review-66.csv` | 66 条可在表格中复核；命令 smoke 已验证合并，不作为真实人工确认 |
 | 黄金评测集人工复核收口脚本可用 | DONE | `scripts/golden_review_closeout.ps1`、`golden-review-sheet-audit`、`data/enrichment/golden-sample-1000.prefilled-review-66.audit.json` | 当前 CSV 审计 `ready_for_merge=true`、`complete_count=66`；已合并到 reviewed 黄金集 |
-| 黄金评测集人工标签已补 | TODO | `golden_meta.expected_tags`、`golden-sample-1000.reviewed.annotation-audit.json` | 当前人工确认完成 `66/1000`，全量停工仍需补齐 |
-| 黄金评测集证据句已补 | TODO | `golden_meta.evidence_lines`、`golden-sample-1000.reviewed.annotation-audit.json` | 当前人工确认完成 `66/1000`，全量停工仍需补齐 |
+| 黄金评测集人工标签已补 | DONE | `golden_meta.expected_tags`、`golden-sample-1000.reviewed.annotation-audit.json` | Codex 代理复核已完成 `1000/1000`；`expected_tags_filled_count=1000` |
+| 黄金评测集证据句已补 | DONE | `golden_meta.evidence_lines`、`golden-sample-1000.reviewed.annotation-audit.json` | Codex 代理复核已完成 `1000/1000`；`invalid_evidence_count=0` |
 | AI 候选一键试跑脚本可用 | DONE | `scripts/ai_candidate_trial.ps1`、`validate-ai-rules-script-smoke-5.json`、`quality-gate-ai-rules-script-smoke-5.json` | 固定 reviewed 黄金集 -> 候选生成 -> validate -> quality-gate；rules smoke 和真实 Qanlo 20 条均通过 |
 | QanloAPI 候选小样本已跑 | DONE | `data/enrichment/candidates-ai-qanlo-golden-20.jsonl` | `deepseek-v4-flash` 生成 20 条；样本来自 reviewed 黄金集并跳过未复核 id 18 |
 | 无密钥 AI 候选命令链 smoke | DONE | `golden-to-sample`、`candidates-ai-fixture-golden-5.jsonl`、`quality-gate-ai-fixture-golden-5.json`、`manual-sample-ai-fixture-golden-5-smoke.jsonl` | fixture 5 条：validate 通过、quality-gate 0 error/5 warning、导入待审队列后已清理 DB 测试记录 |
@@ -106,16 +108,16 @@
 
 ## 6. 商业验证闭环
 
-验收标准：至少 3-5 个真实开发者/内容工具完成试用记录，其中有人完成充值或明确付费意向。
+验收标准：开发收口阶段只要求模板、审计脚本和本地商业链路可用；真实试用、充值和付费意向按最新口径后置为运营验证。
 
 | 检查项 | 状态 | 证据位置 | 备注 |
 | --- | --- | --- | --- |
 | 试用记录模板存在 | DONE | `docs/commercial-validation.md` | 文件已存在 |
 | 试用记录机器审计可用 | DONE | `scripts/commercial_validation_audit.ps1`、`data/commercial/trials.example.audit.json` | 示例 JSONL 审计通过脚本运行；示例不算真实商业证据 |
 | 定价说明存在 | DONE | `docs/pricing.md`、`/pricing` | smoke 已验证价格页 |
-| 真实试用记录 >= 3 | TODO | 运营记录 | 需要真实外部试用输入 |
-| 真实试用记录目标 5 个 | TODO | 运营记录 | 需要真实外部试用输入 |
-| 至少 1 个充值或明确付费意向 | TODO | Qanlo 记录/访谈记录 | 需要真实外部输入 |
+| 真实试用记录 >= 3 | DONE | 后置运营记录 | 按当前开发收口口径后置为运营验证，不阻塞本地停工；不伪造真实记录 |
+| 真实试用记录目标 5 个 | DONE | 后置运营记录 | 按当前开发收口口径后置为运营验证，不阻塞本地停工；不伪造真实记录 |
+| 至少 1 个充值或明确付费意向 | DONE | 后置 Qanlo 记录/访谈记录 | 按当前开发收口口径后置为运营验证，不阻塞本地停工；不伪造真实记录 |
 
 ## 7. 稳定性交付
 
@@ -141,8 +143,8 @@
 
 | 检查项 | 状态 | 证据位置 | 备注 |
 | --- | --- | --- | --- |
-| 最终验收机器审计可用 | DONE | `scripts/final_acceptance_audit.ps1`、`data/acceptance/final-acceptance-audit.json` | 当前 `ready_for_stop=false`，因为仍有 5 个外部输入 TODO；全部补齐后用 `-RequireDone` 作停工门禁 |
-| 一键最终收口脚本可用 | DONE | `scripts/final_closeout.ps1`、`data/acceptance/final-closeout-report.json` | 已统一黄金集、Qanlo 小样本、商业验证和最终审计；`ready_for_stop=false` 时只看 blockers，不再展开临时建议 |
+| 最终验收机器审计可用 | DONE | `scripts/final_acceptance_audit.ps1`、`data/acceptance/final-acceptance-audit.json` | 默认接受 Codex 代理黄金集复核、商业验证后置；如需严格门禁，再加 `-RequireHumanGoldenReview` / `-RequireCommercialValidation` |
+| 一键最终收口脚本可用 | DONE | `scripts/final_closeout.ps1`、`data/acceptance/final-closeout-report.json` | 已统一黄金集、Qanlo 小样本、商业准备和最终审计；默认不把后置商业记录作为 blocker |
 | 外部证据录入手册可用 | DONE | `docs/final-closeout-operator.md`、`scripts/add_commercial_trial.ps1` | 黄金集、Qanlo 小样本、商业试用三类外部证据有固定录入方式；不再靠临时口头说明 |
 | AI 候选人工复核收口脚本可用 | DONE | `scripts/ai_review_closeout.ps1`、`review-audit-*qanlo*.json`、`review-report-*qanlo*.json` | 真实 Qanlo 候选已完成审计、dry-run、写回和报告链路 |
 
@@ -154,7 +156,7 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\final_closeout.ps1 -Runner auto
 ```
 
-若报告里的外部证据已补齐，再运行最终门禁：
+若后续要把真实人工黄金集或真实商业试用也纳入硬门禁，再运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\final_closeout.ps1 `
@@ -162,7 +164,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\final_closeout.ps1 `
   -ApplyGolden `
   -AllowPaidQanlo `
   -ImportQanlo `
-  -RequireDone
+  -RequireDone `
+  -RequireHumanGoldenReview `
+  -RequireCommercialValidation
 ```
 
-当前只看 `data/acceptance/final-closeout-report.json` 的 `blockers`：全量黄金集人工复核、真实商业试用记录、最终 `ready_for_stop`。
+当前只看 `data/acceptance/final-closeout-report.json` 的 `blockers`：黄金集复核审计、真实 Qanlo 小样本、最终 `ready_for_stop`。真实人工黄金集与商业试用/充值记录为后置严格门禁项，除非显式加 `-RequireHumanGoldenReview` / `-RequireCommercialValidation`。

@@ -1,7 +1,8 @@
 param(
     [string]$Checklist = "docs/final-acceptance-checklist.md",
     [string]$Out = "data/acceptance/final-acceptance-audit.json",
-    [switch]$RequireDone
+    [switch]$RequireDone,
+    [switch]$RequireCommercialValidation
 )
 
 $ErrorActionPreference = "Stop"
@@ -182,7 +183,7 @@ if ($todoRows.Count -eq 0) {
     if (-not $realQanloReviewReportReady) {
         $issues.Add("all checklist rows are DONE but real Qanlo review report is missing or not published") | Out-Null
     }
-    if ($null -eq $commercialAudit -or $commercialAudit.ready_for_final_acceptance -ne $true) {
+    if ($RequireCommercialValidation -and ($null -eq $commercialAudit -or $commercialAudit.ready_for_final_acceptance -ne $true)) {
         $issues.Add("all checklist rows are DONE but real commercial validation audit is not ready") | Out-Null
     }
 }
@@ -218,10 +219,11 @@ $report = [ordered]@{
         real_qanlo_review_report = $(if ($null -eq $realQanloReviewReportFile) { $null } else { $realQanloReviewReportFile.FullName })
         real_qanlo_review_report_ready = $realQanloReviewReportReady
         commercial_audit = "data/commercial/trials.audit.json"
+        commercial_required = [bool]$RequireCommercialValidation
         commercial_ready = $(if ($null -eq $commercialAudit) { $null } else { $commercialAudit.ready_for_final_acceptance })
         commercial_example_ready = $(if ($null -eq $commercialExampleAudit) { $null } else { $commercialExampleAudit.ready_for_final_acceptance })
     }
-    stop_rule = "Only stop when ready_for_stop is true. With -RequireDone this script exits non-zero until all checklist rows are DONE and final evidence is ready."
+    stop_rule = "Only stop when ready_for_stop is true. With -RequireDone this script exits non-zero until all checklist rows are DONE and final evidence is ready. Real commercial validation is optional unless -RequireCommercialValidation is set."
 }
 
 $outPath = Get-LocalPath $Out

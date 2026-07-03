@@ -38,6 +38,18 @@ var commercialRouteContracts = []routeContract{
 	{http.MethodGet, "/api/v1/usage/endpoints"},
 	{http.MethodGet, "/api/v1/usage/queries"},
 	{http.MethodPost, "/api/v1/feedback"},
+	{http.MethodGet, "/api/v1/public/works/:code"},
+	{http.MethodPost, "/api/v1/works"},
+	{http.MethodGet, "/api/v1/works"},
+	{http.MethodGet, "/api/v1/works/:id"},
+	{http.MethodPatch, "/api/v1/works/:id"},
+	{http.MethodPost, "/api/v1/works/:id/publish"},
+	{http.MethodGet, "/api/v1/works/:id/versions"},
+	{http.MethodGet, "/api/v1/works/:id/license-acceptances"},
+	{http.MethodGet, "/api/v1/works/:id/plagiarism-report"},
+	{http.MethodGet, "/api/v1/works/:id/media-assets"},
+	{http.MethodGet, "/api/v1/works/:id/image-jobs"},
+	{http.MethodPost, "/api/v1/works/:id/images/generate"},
 	{http.MethodPost, "/api/v1/admin/api-keys"},
 	{http.MethodGet, "/api/v1/admin/api-keys"},
 	{http.MethodPatch, "/api/v1/admin/api-keys/:id"},
@@ -96,6 +108,11 @@ func TestBuiltInCommercialPagesRenderCoreEntrypoints(t *testing.T) {
 				"/api/v1/knowledge/recall",
 				"/api/v1/images/generate",
 				"/api/v1/feedback",
+				"/api/v1/works",
+				"/api/v1/works/:id/plagiarism-report",
+				"console-placeholder-bg.png",
+				"画中题诗",
+				"不要像背景图上后贴图案",
 			},
 		},
 		{
@@ -139,6 +156,18 @@ func TestBuiltInCommercialPagesRenderCoreEntrypoints(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConsolePlaceholderImageRouteRendersPaintingAsset(t *testing.T) {
+	router := setupRouterContractTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/console-placeholder-bg.png", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Header().Get("Content-Type"), "image/png")
+	require.Greater(t, w.Body.Len(), 1024)
 }
 
 func TestOpenAPIYAMLIsRegisteredAndDocumentsCoreRoutes(t *testing.T) {

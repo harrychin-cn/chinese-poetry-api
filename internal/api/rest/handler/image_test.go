@@ -98,3 +98,34 @@ func TestGenerateImageProxiesAndReturnsDataURL(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, usage, "successful image generation should consume one local quota")
 }
+
+func TestGenerateImageAcceptsRequestScopedImageKey(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "Bearer request-image-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aGVsbG8="}]}`))
+	}))
+	defer upstream.Close()
+
+	router, repo, rawKey := setupImageHandlerTest(t, config.ImageConfig{
+		BaseURL:        upstream.URL + "/openai/v1",
+		Model:          "gpt-image-2",
+		Quality:        "high",
+		OutputFormat:   "png",
+		TimeoutSeconds: 5,
+	}, 2)
+
+	req := httptest.NewRequest(http.MethodPost, "/images/generate", strings.NewReader(`{"prompt":"古风水墨山水","size":"1024x1024"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", rawKey)
+	req.Header.Set("X-Image-API-Key", "request-image-key")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.NotContains(t, w.Body.String(), "request-image-key")
+
+	usage, err := repo.GetAPIKeyUsageCount(1, time.Now().UTC().Format("2006-01-02"))
+	require.NoError(t, err)
+	assert.Equal(t, 1, usage)
+}

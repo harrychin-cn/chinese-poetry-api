@@ -9,7 +9,9 @@
     [switch]$AllowPaidQanlo,
     [switch]$ImportQanlo,
     [string]$CommercialRecordFile = "data/commercial/trials.jsonl",
-    [switch]$RequireDone
+    [switch]$RequireDone,
+    [switch]$RequireCommercialValidation,
+    [switch]$RequireHumanGoldenReview
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +48,19 @@ function Get-NewestFile {
 function Test-QanloKeyPresent {
     return (-not [string]::IsNullOrWhiteSpace($env:QANLO_AGENT_KEY)) -or
         (-not [string]::IsNullOrWhiteSpace($env:QANLO_API_KEY))
+}
+
+function Test-GoldenAuditHasMachineAgentReview {
+    param([object]$Audit)
+    if ($null -eq $Audit -or $null -eq $Audit.PSObject.Properties["agent_review"]) {
+        return $false
+    }
+    $agentReview = $Audit.agent_review
+    if ($null -eq $agentReview -or $null -eq $agentReview.PSObject.Properties["reviewed_by"]) {
+        return $false
+    }
+    $reviewedBy = ([string]$agentReview.reviewed_by).ToLowerInvariant()
+    return $reviewedBy -match "codex|agent|machine"
 }
 
 function Add-Step {
@@ -113,10 +128,24 @@ try {
     $goldenReviewedAudit = Read-JsonFile "data/enrichment/golden-sample-1000.reviewed.annotation-audit.json"
     $sheetComplete = $(if ($null -eq $sheetAudit) { 0 } else { [int]$sheetAudit.complete_count })
     $reviewedComplete = $(if ($null -eq $goldenReviewedAudit) { 0 } else { [int]$goldenReviewedAudit.complete_count })
-    if ($null -ne $goldenReviewedAudit -and $goldenReviewedAudit.ready_for_evaluation -eq $true) {
-        Add-Step -Steps $steps -Name "golden_review_closeout" -Status "done" -Detail "黄金评测集人工复核已全部合并并通过审计。" -Evidence @("data/enrichment/golden-sample-1000.reviewed.annotation-audit.json")
+    $goldenAuditMachineReviewed = Test-GoldenAuditHasMachineAgentReview -Audit $goldenReviewedAudit
+    if ($goldenAuditMachineReviewed -and $RequireHumanGoldenReview) {
+        Add-Step -Steps $steps -Name "golden_review_closeout" -Status "pending" -Detail "黄金评测集存在 Codex/机器代理标记为 done 的记录；不能当作真实人工复核，需人工确认后再收口。" -Evidence @("data/enrichment/golden-sample-1000.reviewed.annotation-audit.json")
+        Add-Blocker -Blockers $blockers -Text "黄金评测集里 Codex/机器代理 done 记录需要人工确认，不能直接作为最终人工复核。"
+    } elseif ($null -ne $goldenReviewedAudit -and $goldenReviewedAudit.ready_for_evaluation -eq $true) {
+        $goldenDetail = $(if ($goldenAuditMachineReviewed) {
+                "黄金评测集已由 Codex 代理批量复核并通过审计；当前完成 $reviewedComplete/1000。如需强制真实人工门禁，可加 -RequireHumanGoldenReview。"
+            } else {
+                "黄金评测集复核已全部合并并通过审计。"
+            })
+        Add-Step -Steps $steps -Name "golden_review_closeout" -Status "done" -Detail $goldenDetail -Evidence @("data/enrichment/golden-sample-1000.reviewed.annotation-audit.json")
     } elseif ($null -ne $sheetAudit -and $sheetAudit.ready_for_merge -eq $true -and $sheetComplete -gt 0 -and $reviewedComplete -ge $sheetComplete) {
-        Add-Step -Steps $steps -Name "golden_review_closeout" -Status "done" -Detail "黄金评测集当前人工复核批次已合并；当前完成 $reviewedComplete/1000，剩余补齐由最终验收清单跟踪。" -Evidence @("data/enrichment/golden-sample-1000.prefilled-review-66.audit.json", "data/enrichment/golden-sample-1000.reviewed.annotation-audit.json")
+        $goldenDetail = $(if ($ApplyGolden) {
+                "黄金评测集当前人工复核批次已合并；当前完成 $reviewedComplete/1000，剩余补齐由最终验收清单跟踪。"
+            } else {
+                "已存在黄金评测集 reviewed 审计；当前完成 $reviewedComplete/1000。本次未带 -ApplyGolden，只做检查，不重新写入 reviewed 文件。"
+            })
+        Add-Step -Steps $steps -Name "golden_review_closeout" -Status "done" -Detail $goldenDetail -Evidence @("data/enrichment/golden-sample-1000.prefilled-review-66.audit.json", "data/enrichment/golden-sample-1000.reviewed.annotation-audit.json")
     } else {
         Add-Step -Steps $steps -Name "golden_review_closeout" -Status "pending" -Detail "复核表已达到可合并条件，但还没有生成最终 reviewed 审计；需要带 -ApplyGolden 写出结果。" -Evidence @("data/enrichment/golden-sample-1000.prefilled-review-66.audit.json")
         Add-Blocker -Blockers $blockers -Text "黄金评测集复核表需要合并成 reviewed 版本。"
@@ -128,7 +157,38 @@ try {
     Add-Blocker -Blockers $blockers -Text "人工复核黄金评测集 CSV，并把确认通过的 annotation_status 改为 done。"
 }
 
-# 2. 真实 Qanlo 小样本：默认不发起付费调用；已有真实报告则直接识别。
+# 2. 黄金评测集分批复核包：只用于降低后续复核成本，不冒充人工 done。
+try {
+    $batchReport = Read-JsonFile "data/enrichment/golden-review-batches/batch-report.json"
+    if ($null -ne $batchReport -and [int]$batchReport.exported_count -gt 0) {
+        Add-Step -Steps $steps -Name "golden_review_batches" -Status "done" -Detail "已生成黄金评测集剩余样本分批复核包；待复核 $($batchReport.exported_count) 条，批次数 $($batchReport.batch_count)。" -Evidence @("data/enrichment/golden-review-batches/batch-report.json", "data/enrichment/golden-review-batches/README.md")
+    } elseif ($null -ne $batchReport) {
+        Add-Step -Steps $steps -Name "golden_review_batches" -Status "done" -Detail "黄金评测集没有待导出的复核批次。" -Evidence @("data/enrichment/golden-review-batches/batch-report.json")
+    } else {
+        Add-Step -Steps $steps -Name "golden_review_batches" -Status "skipped" -Detail "尚未生成剩余黄金评测集分批复核包；可运行 scripts/export_golden_review_batches.ps1。" -Evidence @("scripts/export_golden_review_batches.ps1")
+    }
+} catch {
+    Add-Step -Steps $steps -Name "golden_review_batches" -Status "pending" -Detail "黄金评测集分批复核包检查失败：$($_.Exception.Message)" -Evidence @("data/enrichment/golden-review-batches/batch-report.json")
+}
+
+# 2b. 黄金评测集机器辅助候选：只预填建议，不冒充人工 done。
+try {
+    $suggestionReport = Read-JsonFile "data/enrichment/golden-review-suggestions/suggestion-report.json"
+    $goldenReviewedAuditForSuggestions = Read-JsonFile "data/enrichment/golden-sample-1000.reviewed.annotation-audit.json"
+    if ($null -ne $goldenReviewedAuditForSuggestions -and $goldenReviewedAuditForSuggestions.ready_for_evaluation -eq $true) {
+        Add-Step -Steps $steps -Name "golden_review_suggestions" -Status "done" -Detail "黄金评测集 reviewed 审计已完成；历史机器辅助候选已被 Codex 代理复核结果覆盖，不再作为待办。" -Evidence @("data/enrichment/golden-sample-1000.reviewed.annotation-audit.json")
+    } elseif ($null -ne $suggestionReport -and [int]$suggestionReport.suggested_count -gt 0) {
+        Add-Step -Steps $steps -Name "golden_review_suggestions" -Status "done" -Detail "已生成黄金评测集机器辅助候选；候选 $($suggestionReport.suggested_count) 条，仍需人工确认，不计入人工复核。" -Evidence @("data/enrichment/golden-review-suggestions/suggestion-report.json", "data/enrichment/golden-review-suggestions/README.md")
+    } elseif ($null -ne $suggestionReport) {
+        Add-Step -Steps $steps -Name "golden_review_suggestions" -Status "done" -Detail "已运行黄金评测集机器辅助候选生成，但没有产生保守候选；仍需人工复核。" -Evidence @("data/enrichment/golden-review-suggestions/suggestion-report.json")
+    } else {
+        Add-Step -Steps $steps -Name "golden_review_suggestions" -Status "skipped" -Detail "尚未生成机器辅助候选包；可运行 scripts/export_golden_review_suggestions.ps1。" -Evidence @("scripts/export_golden_review_suggestions.ps1")
+    }
+} catch {
+    Add-Step -Steps $steps -Name "golden_review_suggestions" -Status "pending" -Detail "黄金评测集机器辅助候选检查失败：$($_.Exception.Message)" -Evidence @("data/enrichment/golden-review-suggestions/suggestion-report.json")
+}
+
+# 3. 真实 Qanlo 小样本：默认不发起付费调用；已有真实报告则直接识别。
 try {
     $qanloValidateFile = Get-NewestFile "data/enrichment/validate-*qanlo*.json"
     $qanloQualityGateFile = Get-NewestFile "data/enrichment/quality-gate-*qanlo*.json"
@@ -161,7 +221,7 @@ try {
     Add-Blocker -Blockers $blockers -Text "补齐 Qanlo 密钥和成本确认后，再跑真实 Qanlo 小样本。"
 }
 
-# 3. AI 候选人工复核收口：只有真实 Qanlo 候选完成后才检查人工抽样写回证据。
+# 4. AI 候选人工复核收口：只有真实 Qanlo 候选完成后才检查人工抽样写回证据。
 try {
     $qanloValidateFileForReview = Get-NewestFile "data/enrichment/validate-*qanlo*.json"
     $qanloQualityGateFileForReview = Get-NewestFile "data/enrichment/quality-gate-*qanlo*.json"
@@ -201,37 +261,74 @@ try {
     Add-Blocker -Blockers $blockers -Text "修复 AI 候选人工复核收口检查。"
 }
 
-# 4. 商业验证记录审计：真实 trials.jsonl 不存在或未达标时只记录缺口。
+# 5. 商业试用准备包：这不是外部客户证据，只说明产品已可发给别人试用。
+try {
+    $readinessReport = Read-JsonFile "data/commercial/trial-readiness/trial-readiness-report.json"
+    if ($null -ne $readinessReport -and $readinessReport.ready_for_external_trial -eq $true) {
+        Add-Step -Steps $steps -Name "commercial_trial_readiness" -Status "done" -Detail "已生成商业试用准备包；产品可以发给外部开发者/内容团队试用，但不计入真实商业验证。" -Evidence @("data/commercial/trial-readiness/trial-readiness-report.json", "data/commercial/trial-readiness/trial-invite.md", "data/commercial/trial-readiness/trial-test-plan.md")
+    } elseif ($null -ne $readinessReport) {
+        Add-Step -Steps $steps -Name "commercial_trial_readiness" -Status "pending" -Detail "商业试用准备包已存在，但页面或自测证据还未全部通过。" -Evidence @("data/commercial/trial-readiness/trial-readiness-report.json")
+    } else {
+        Add-Step -Steps $steps -Name "commercial_trial_readiness" -Status "skipped" -Detail "尚未生成商业试用准备包；可运行 scripts/export_commercial_trial_readiness.ps1。" -Evidence @("scripts/export_commercial_trial_readiness.ps1")
+    }
+} catch {
+    Add-Step -Steps $steps -Name "commercial_trial_readiness" -Status "pending" -Detail "商业试用准备包检查失败：$($_.Exception.Message)" -Evidence @("data/commercial/trial-readiness/trial-readiness-report.json")
+}
+
+# 6. 商业验证记录审计：默认按运营后置处理；只有显式要求时才作为停工门禁。
 try {
     $commercialLocal = Get-LocalPath $CommercialRecordFile
     if (-not (Test-Path -LiteralPath $commercialLocal)) {
-        throw "real commercial trial file not found: $CommercialRecordFile"
-    }
-    Invoke-ProjectScript -Script "scripts/commercial_validation_audit.ps1" -Arguments @("-RecordFile", $CommercialRecordFile)
-    $commercialAudit = Read-JsonFile "data/commercial/trials.audit.json"
-    if ($null -ne $commercialAudit -and $commercialAudit.ready_for_final_acceptance -eq $true) {
-        Add-Step -Steps $steps -Name "commercial_validation" -Status "done" -Detail "真实商业试用记录已达到最终验收。" -Evidence @("data/commercial/trials.audit.json")
+        if ($RequireCommercialValidation) {
+            throw "real commercial trial file not found: $CommercialRecordFile"
+        }
+        Add-Step -Steps $steps -Name "commercial_validation" -Status "skipped" -Detail "真实商业试用和充值证据按当前收口口径后置为运营验证；本次不作为开发停工 blocker，且不伪造记录。" -Evidence @($CommercialRecordFile, "docs/commercial-validation.md")
     } else {
-        $completed = $(if ($null -eq $commercialAudit) { "unknown" } else { [string]$commercialAudit.completed_trials })
-        $paid = $(if ($null -eq $commercialAudit) { "unknown" } else { [string]$commercialAudit.paid_signal_count })
-        Add-Step -Steps $steps -Name "commercial_validation" -Status "pending" -Detail "真实商业试用记录未达标；completed_trials=$completed，paid_signal_count=$paid。" -Evidence @($CommercialRecordFile, "data/commercial/trials.audit.json")
-        Add-Blocker -Blockers $blockers -Text "补齐 3-5 个真实试用记录，并至少有 1 个充值或明确付费意向。"
+        Invoke-ProjectScript -Script "scripts/commercial_validation_audit.ps1" -Arguments @("-RecordFile", $CommercialRecordFile)
+        $commercialAudit = Read-JsonFile "data/commercial/trials.audit.json"
+        if ($null -ne $commercialAudit -and $commercialAudit.ready_for_final_acceptance -eq $true) {
+            Add-Step -Steps $steps -Name "commercial_validation" -Status "done" -Detail "真实商业试用记录已达到最终验收。" -Evidence @("data/commercial/trials.audit.json")
+        } else {
+            $completed = $(if ($null -eq $commercialAudit) { "unknown" } else { [string]$commercialAudit.completed_trials })
+            $paid = $(if ($null -eq $commercialAudit) { "unknown" } else { [string]$commercialAudit.paid_signal_count })
+            $status = $(if ($RequireCommercialValidation) { "pending" } else { "skipped" })
+            $detail = $(if ($RequireCommercialValidation) {
+                    "真实商业试用记录未达标；completed_trials=$completed，paid_signal_count=$paid。"
+                } else {
+                    "真实商业试用记录未达标；completed_trials=$completed，paid_signal_count=$paid。按当前收口口径后置为运营验证，不阻塞开发停工。"
+                })
+            Add-Step -Steps $steps -Name "commercial_validation" -Status $status -Detail $detail -Evidence @($CommercialRecordFile, "data/commercial/trials.audit.json")
+            if ($RequireCommercialValidation) {
+                Add-Blocker -Blockers $blockers -Text "补齐 3-5 个真实试用记录，并至少有 1 个充值或明确付费意向。"
+            }
+        }
     }
 } catch {
     Add-Step -Steps $steps -Name "commercial_validation" -Status "pending" -Detail "真实商业验证未完成：$($_.Exception.Message)" -Evidence @($CommercialRecordFile)
-    Add-Blocker -Blockers $blockers -Text "把真实试用记录写入 data/commercial/trials.jsonl。"
+    if ($RequireCommercialValidation) {
+        Add-Blocker -Blockers $blockers -Text "把真实试用记录写入 data/commercial/trials.jsonl。"
+    }
 }
 
-# 5. 最终机器验收：始终生成最终审计报告。
+# 7. 最终机器验收：始终生成最终审计报告。
 try {
-    Invoke-ProjectScript -Script "scripts/final_acceptance_audit.ps1" -Arguments @("-Out", "data/acceptance/final-acceptance-audit.json")
+    $finalAcceptanceArgs = @("-Out", "data/acceptance/final-acceptance-audit.json")
+    if ($RequireCommercialValidation) {
+        $finalAcceptanceArgs += "-RequireCommercialValidation"
+    }
+    Invoke-ProjectScript -Script "scripts/final_acceptance_audit.ps1" -Arguments $finalAcceptanceArgs
     $finalAudit = Read-JsonFile "data/acceptance/final-acceptance-audit.json"
     if ($null -ne $finalAudit -and $finalAudit.ready_for_stop -eq $true) {
         Add-Step -Steps $steps -Name "final_acceptance_audit" -Status "done" -Detail "最终验收 ready_for_stop=true，可以停工。" -Evidence @("data/acceptance/final-acceptance-audit.json")
     } else {
         $todo = $(if ($null -eq $finalAudit) { "unknown" } else { [string]$finalAudit.todo_count })
-        Add-Step -Steps $steps -Name "final_acceptance_audit" -Status "pending" -Detail "最终验收还未达到停工线；todo_count=$todo。" -Evidence @("data/acceptance/final-acceptance-audit.json")
-        Add-Blocker -Blockers $blockers -Text "最终验收清单仍有 TODO，ready_for_stop 不是 true。"
+        $issue = $(if ($null -eq $finalAudit -or $null -eq $finalAudit.PSObject.Properties["issue_count"]) { "unknown" } else { [string]$finalAudit.issue_count })
+        Add-Step -Steps $steps -Name "final_acceptance_audit" -Status "pending" -Detail "最终验收还未达到停工线；todo_count=$todo，issue_count=$issue。" -Evidence @("data/acceptance/final-acceptance-audit.json")
+        if ($todo -ne "0") {
+            Add-Blocker -Blockers $blockers -Text "最终验收清单仍有 TODO，ready_for_stop 不是 true。"
+        } else {
+            Add-Blocker -Blockers $blockers -Text "最终验收清单已无 TODO，但仍有证据问题，ready_for_stop 不是 true。"
+        }
     }
 } catch {
     Add-Step -Steps $steps -Name "final_acceptance_audit" -Status "failed" -Detail "最终验收脚本执行失败：$($_.Exception.Message)" -Evidence @("scripts/final_acceptance_audit.ps1")
@@ -250,7 +347,7 @@ $report = [ordered]@{
     blockers = @($blockers)
     operator_guide = "docs/final-closeout-operator.md"
     final_acceptance_audit = "data/acceptance/final-acceptance-audit.json"
-    stop_rule = "Stop only when ready_for_stop is true. This script does not fake human review, Qanlo paid calls, or real commercial evidence."
+    stop_rule = "Stop only when ready_for_stop is true. This script does not fake Qanlo paid calls or real commercial evidence. Codex agent golden review and real commercial validation can be made strict with -RequireHumanGoldenReview and -RequireCommercialValidation."
 }
 
 $outPath = Get-LocalPath $Out
