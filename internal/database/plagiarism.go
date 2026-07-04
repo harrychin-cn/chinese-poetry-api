@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ type WorkFingerprint struct {
 	NormalizedHash string    `gorm:"column:normalized_hash;not null" json:"normalized_hash"`
 	SimHash        string    `gorm:"column:simhash;not null" json:"simhash"`
 	NGramJSON      string    `gorm:"column:ngram_json" json:"ngram_json,omitempty"`
+	EmbeddingJSON  string    `gorm:"column:embedding_json" json:"embedding_json,omitempty"`
 	CreatedAt      time.Time `gorm:"column:created_at" json:"created_at"`
 }
 
@@ -76,14 +78,17 @@ func (SimilarityMatch) TableName() string { return "similarity_matches" }
 
 // ManualReviewQueueItem marks high-risk works for operator review.
 type ManualReviewQueueItem struct {
-	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	WorkID    int64     `gorm:"column:work_id;not null" json:"work_id"`
-	ReportID  int64     `gorm:"column:report_id;not null" json:"report_id"`
-	RiskLevel string    `gorm:"column:risk_level;not null" json:"risk_level"`
-	Reason    string    `gorm:"column:reason" json:"reason,omitempty"`
-	Status    string    `gorm:"column:status;not null" json:"status"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	WorkID      int64      `gorm:"column:work_id;not null" json:"work_id"`
+	ReportID    int64      `gorm:"column:report_id;not null" json:"report_id"`
+	RiskLevel   string     `gorm:"column:risk_level;not null" json:"risk_level"`
+	Reason      string     `gorm:"column:reason" json:"reason,omitempty"`
+	Status      string     `gorm:"column:status;not null" json:"status"`
+	Reviewer    string     `gorm:"column:reviewer" json:"reviewer,omitempty"`
+	ReviewNotes string     `gorm:"column:review_notes" json:"review_notes,omitempty"`
+	DecidedAt   *time.Time `gorm:"column:decided_at" json:"decided_at,omitempty"`
+	CreatedAt   time.Time  `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt   time.Time  `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (ManualReviewQueueItem) TableName() string { return "manual_review_queue" }
@@ -105,6 +110,7 @@ type plagiarismSource struct {
 	title      string
 	author     string
 	content    string
+	embedding  []float64
 }
 
 // LatestPlagiarismReport returns the newest report for an owned work.
@@ -136,6 +142,8 @@ func (r *Repository) runPlagiarismCheckTx(tx *gorm.DB, work *OriginalWork) (*pla
 	normalizedHash := hashNormalizedText(normalized)
 	simHash := plagiarismSimHash(normalized)
 	ngramJSON := marshalStringSlice(ngrams)
+	embedding := plagiarismEmbedding(normalized)
+	embeddingJSON := marshalFloatSlice(embedding)
 
 	fp := WorkFingerprint{
 		WorkID:         work.ID,
@@ -143,6 +151,7 @@ func (r *Repository) runPlagiarismCheckTx(tx *gorm.DB, work *OriginalWork) (*pla
 		NormalizedHash: normalizedHash,
 		SimHash:        simHash,
 		NGramJSON:      ngramJSON,
+		EmbeddingJSON:  embeddingJSON,
 	}
 	if err := tx.Create(&fp).Error; err != nil {
 		return nil, err
@@ -153,7 +162,7 @@ func (r *Repository) runPlagiarismCheckTx(tx *gorm.DB, work *OriginalWork) (*pla
 		return nil, err
 	}
 
-	matches := scorePlagiarismSources(normalized, ngrams, normalizedHash, sources)
+	matches := scorePlagiarismSources(ngrams, normalizedHash, embedding, sources)
 	riskLevel, reason, exactCount, similarCount := classifyPlagiarism(matches)
 	reviewStatus := "auto_checked"
 	if riskLevel == PlagiarismRiskHigh || riskLevel == PlagiarismRiskExact {
@@ -247,6 +256,18 @@ func (r *Repository) findPlagiarismSourcesTx(tx *gorm.DB, work *OriginalWork, no
 		}
 	}
 
+	corpus, err := r.findCorpusSourcesTx(tx)
+	if err != nil {
+		return nil, err
+	}
+	for _, src := range corpus {
+		key := src.sourceType + ":" + src.sourceID
+		if !seen[key] {
+			seen[key] = true
+			sources = append(sources, src)
+		}
+	}
+
 	return sources, nil
 }
 
@@ -322,7 +343,31 @@ func (r *Repository) findOriginalWorkSourcesTx(tx *gorm.DB, work *OriginalWork, 
 	return sources, nil
 }
 
-func scorePlagiarismSources(normalized string, ngrams []string, normalizedHash string, sources []plagiarismSource) []SimilarityMatch {
+func (r *Repository) findCorpusSourcesTx(tx *gorm.DB) ([]plagiarismSource, error) {
+	var rows []PlagiarismCorpusSource
+	if err := tx.Model(&PlagiarismCorpusSource{}).
+		Where("status = ?", PlagiarismCorpusStatusEnabled).
+		Order("updated_at DESC, id DESC").
+		Limit(300).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	sources := make([]plagiarismSource, 0, len(rows))
+	for _, row := range rows {
+		sources = append(sources, plagiarismSource{
+			sourceType: row.SourceType,
+			sourceID:   fmt.Sprintf("%d", row.ID),
+			title:      row.Title,
+			author:     firstNonEmptyString(row.Author, row.SourceURL),
+			content:    row.Content,
+			embedding:  parseEmbeddingJSON(row.EmbeddingJSON),
+		})
+	}
+	return sources, nil
+}
+
+func scorePlagiarismSources(ngrams []string, normalizedHash string, embedding []float64, sources []plagiarismSource) []SimilarityMatch {
 	matches := make([]SimilarityMatch, 0, len(sources))
 	for _, src := range sources {
 		sourceNormalized := normalizePlagiarismText(src.content)
@@ -336,6 +381,16 @@ func scorePlagiarismSources(normalized string, ngrams []string, normalizedHash s
 		if normalizedHash == sourceHash {
 			score = 1
 			matchType = "exact"
+		} else {
+			sourceEmbedding := src.embedding
+			if len(sourceEmbedding) == 0 {
+				sourceEmbedding = plagiarismEmbedding(sourceNormalized)
+			}
+			semanticScore := cosineSimilarity(embedding, sourceEmbedding)
+			if semanticScore >= 0.72 && semanticScore > score {
+				score = semanticScore
+				matchType = "embedding_semantic"
+			}
 		}
 		if score < 0.35 && matchType != "exact" {
 			continue
@@ -349,7 +404,6 @@ func scorePlagiarismSources(normalized string, ngrams []string, normalizedHash s
 			MatchType:    matchType,
 			Excerpt:      plagiarismExcerpt(src.content),
 		})
-		_ = normalized
 	}
 	sort.SliceStable(matches, func(i, j int) bool {
 		if matches[i].Similarity == matches[j].Similarity {
@@ -365,7 +419,7 @@ func scorePlagiarismSources(normalized string, ngrams []string, normalizedHash s
 
 func classifyPlagiarism(matches []SimilarityMatch) (risk, reason string, exactCount, similarCount int) {
 	risk = PlagiarismRiskLow
-	reason = "no high-similarity source was found in the local ancient-poem and platform-original indexes"
+	reason = "no high-similarity source was found in the ancient-poem, platform-original, semantic, or dispute-corpus indexes"
 	for _, match := range matches {
 		if match.MatchType == "exact" {
 			exactCount++
@@ -457,6 +511,73 @@ func ngramSimilarity(a, b []string) float64 {
 	return jaccard
 }
 
+func plagiarismEmbedding(value string) []float64 {
+	const dims = 64
+	vector := make([]float64, dims)
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return vector
+	}
+	for i, r := range runes {
+		addEmbeddingFeature(vector, "c:"+string(r), 1.0)
+		if i+1 < len(runes) {
+			addEmbeddingFeature(vector, "b:"+string(runes[i:i+2]), 0.35)
+		}
+		if i+2 < len(runes) {
+			addEmbeddingFeature(vector, "s:"+string([]rune{r, runes[i+2]}), 0.2)
+		}
+	}
+	normalizeVector(vector)
+	return vector
+}
+
+func addEmbeddingFeature(vector []float64, feature string, weight float64) {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(feature))
+	sum := h.Sum64()
+	idx := int(sum % uint64(len(vector)))
+	sign := 1.0
+	if (sum>>63)&1 == 1 {
+		sign = -1.0
+	}
+	vector[idx] += sign * weight
+}
+
+func normalizeVector(vector []float64) {
+	var norm float64
+	for _, value := range vector {
+		norm += value * value
+	}
+	if norm == 0 {
+		return
+	}
+	norm = math.Sqrt(norm)
+	for i := range vector {
+		vector[i] = vector[i] / norm
+	}
+}
+
+func cosineSimilarity(a, b []float64) float64 {
+	if len(a) == 0 || len(b) == 0 {
+		return 0
+	}
+	n := minInt(len(a), len(b))
+	var dot, normA, normB float64
+	for i := 0; i < n; i++ {
+		dot += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
+	}
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+	score := dot / (math.Sqrt(normA) * math.Sqrt(normB))
+	if score < 0 {
+		return 0
+	}
+	return score
+}
+
 func plagiarismCandidateSeeds(content string, normalized string) []string {
 	seen := map[string]bool{}
 	var seeds []string
@@ -545,6 +666,36 @@ func marshalStringSlice(values []string) string {
 		return "[]"
 	}
 	return string(data)
+}
+
+func marshalFloatSlice(values []float64) string {
+	data, err := json.Marshal(values)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
+}
+
+func parseEmbeddingJSON(value string) []float64 {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	var vector []float64
+	if err := json.Unmarshal([]byte(value), &vector); err != nil {
+		return nil
+	}
+	return vector
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func marshalSimilarityMatches(matches []SimilarityMatch) string {

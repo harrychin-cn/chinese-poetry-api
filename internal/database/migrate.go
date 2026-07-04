@@ -593,9 +593,13 @@ func (db *DB) migrateOriginalWorkTables() error {
 		normalized_hash TEXT NOT NULL,
 		simhash TEXT NOT NULL,
 		ngram_json TEXT,
+		embedding_json TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (work_id) REFERENCES original_works(id)
 	)`).Error; err != nil {
+		return err
+	}
+	if err := db.ensureColumn("work_fingerprints", "embedding_json", "embedding_json TEXT"); err != nil {
 		return err
 	}
 
@@ -641,10 +645,40 @@ func (db *DB) migrateOriginalWorkTables() error {
 		risk_level TEXT NOT NULL,
 		reason TEXT,
 		status TEXT NOT NULL DEFAULT 'pending',
+		reviewer TEXT,
+		review_notes TEXT,
+		decided_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (work_id) REFERENCES original_works(id),
 		FOREIGN KEY (report_id) REFERENCES plagiarism_reports(id)
+	)`).Error; err != nil {
+		return err
+	}
+	if err := db.ensureColumn("manual_review_queue", "reviewer", "reviewer TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("manual_review_queue", "review_notes", "review_notes TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("manual_review_queue", "decided_at", "decided_at DATETIME"); err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS plagiarism_corpus_sources (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		source_type TEXT NOT NULL DEFAULT 'network_corpus',
+		title TEXT NOT NULL,
+		author TEXT,
+		source_url TEXT,
+		content TEXT NOT NULL,
+		normalized_hash TEXT NOT NULL,
+		embedding_json TEXT,
+		status TEXT NOT NULL DEFAULT 'enabled',
+		notes TEXT,
+		created_by TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`).Error; err != nil {
 		return err
 	}
@@ -667,6 +701,8 @@ func (db *DB) migrateOriginalWorkTables() error {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_similarity_matches_report ON similarity_matches(report_id, similarity)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_similarity_matches_work ON similarity_matches(work_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_manual_review_queue_status ON manual_review_queue(status, risk_level, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_plagiarism_corpus_status ON plagiarism_corpus_sources(status, source_type, updated_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_plagiarism_corpus_hash ON plagiarism_corpus_sources(normalized_hash)`)
 
 	return nil
 }

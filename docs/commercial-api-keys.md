@@ -101,6 +101,11 @@ GET /api/v1/admin/usage/endpoints
 GET /api/v1/admin/usage/queries
 GET /api/v1/admin/feedback
 PATCH /api/v1/admin/feedback/:id
+GET /api/v1/admin/plagiarism/review-queue
+POST /api/v1/admin/plagiarism/review-queue/:id/approve
+POST /api/v1/admin/plagiarism/review-queue/:id/reject
+GET /api/v1/admin/plagiarism/corpus-sources
+POST /api/v1/admin/plagiarism/corpus-sources
 GET /api/v1/admin/enrichment/jobs
 POST /api/v1/admin/enrichment/jobs
 GET /api/v1/admin/enrichment/runs/:run_id/summary
@@ -273,6 +278,33 @@ curl "http://localhost:1279/api/v1/works/1/versions" -H "X-API-Key: cp_live_xxx"
 curl "http://localhost:1279/api/v1/works/1/license-acceptances" -H "X-API-Key: cp_live_xxx"
 curl "http://localhost:1279/api/v1/works/1/plagiarism-report" -H "X-API-Key: cp_live_xxx"
 curl "http://localhost:1279/api/v1/public/works/PCQF-2026-00000001"
+```
+
+
+Stage 2 plagiarism admin MVP:
+
+```bash
+# Add an operator-curated network/dispute corpus source. The service stores a local semantic embedding for later checks.
+curl -X POST "http://localhost:1279/api/v1/admin/plagiarism/corpus-sources" \
+  -H "X-Admin-Token: replace-with-a-long-random-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"source_type":"dispute_case","title":"Known disputed source","source_url":"https://example.com/source","content":"source text for comparison","created_by":"operator"}'
+
+curl "http://localhost:1279/api/v1/admin/plagiarism/corpus-sources?status=enabled" \
+  -H "X-Admin-Token: replace-with-a-long-random-secret"
+
+curl "http://localhost:1279/api/v1/admin/plagiarism/review-queue?status=pending" \
+  -H "X-Admin-Token: replace-with-a-long-random-secret"
+
+curl -X POST "http://localhost:1279/api/v1/admin/plagiarism/review-queue/1/approve" \
+  -H "X-Admin-Token: replace-with-a-long-random-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewer":"operator","notes":"authorized quotation"}'
+
+curl -X POST "http://localhost:1279/api/v1/admin/plagiarism/review-queue/1/reject" \
+  -H "X-Admin-Token: replace-with-a-long-random-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewer":"operator","notes":"too close to known source"}'
 ```
 
 作品级生图资产：

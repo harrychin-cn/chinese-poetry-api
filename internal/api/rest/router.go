@@ -179,6 +179,13 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		admin.GET("/feedback", feedbackHandler.List)
 		admin.PATCH("/feedback/:id", feedbackHandler.Update)
 
+		plagiarismAdminHandler := handler.NewPlagiarismAdminHandler(repo)
+		admin.GET("/plagiarism/review-queue", plagiarismAdminHandler.ListReviewQueue)
+		admin.POST("/plagiarism/review-queue/:id/approve", plagiarismAdminHandler.ApproveReviewQueueItem)
+		admin.POST("/plagiarism/review-queue/:id/reject", plagiarismAdminHandler.RejectReviewQueueItem)
+		admin.GET("/plagiarism/corpus-sources", plagiarismAdminHandler.ListCorpusSources)
+		admin.POST("/plagiarism/corpus-sources", plagiarismAdminHandler.CreateCorpusSource)
+
 		enrichmentHandler := handler.NewEnrichmentHandler(repo)
 		admin.POST("/enrichment/jobs", enrichmentHandler.CreateJob)
 		admin.GET("/enrichment/jobs", enrichmentHandler.ListJobs)

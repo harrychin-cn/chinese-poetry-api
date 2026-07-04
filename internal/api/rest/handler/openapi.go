@@ -18,7 +18,7 @@ info:
   description: |
     Commercial API for Chinese poetry query, full-text search, tag retrieval,
     AI knowledge recall, QanloAPI billing, usage analytics, feedback, abuse control,
-    and AI data-enrichment review operations.
+    originality plagiarism review, and AI data-enrichment review operations.
 servers:
   - url: http://localhost:1279
     description: Local development server
@@ -35,6 +35,7 @@ tags:
   - name: Usage
   - name: Feedback
   - name: Works
+  - name: Plagiarism
   - name: Admin
   - name: Enrichment
 security: []
@@ -930,6 +931,100 @@ paths:
         - AdminToken: []
       parameters:
         - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/admin/plagiarism/review-queue:
+    get:
+      tags:
+        - Plagiarism
+      summary: Admin list plagiarism manual review queue
+      operationId: adminListPlagiarismReviewQueue
+      security:
+        - AdminToken: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+              - all
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/admin/plagiarism/review-queue/{id}/approve:
+    post:
+      tags:
+        - Plagiarism
+      summary: Admin approve a high-risk work after manual review
+      operationId: adminApprovePlagiarismReviewQueueItem
+      security:
+        - AdminToken: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/admin/plagiarism/review-queue/{id}/reject:
+    post:
+      tags:
+        - Plagiarism
+      summary: Admin reject a high-risk work after manual review
+      operationId: adminRejectPlagiarismReviewQueueItem
+      security:
+        - AdminToken: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/admin/plagiarism/corpus-sources:
+    get:
+      tags:
+        - Plagiarism
+      summary: Admin list network/dispute corpus sources used by plagiarism checks
+      operationId: adminListPlagiarismCorpusSources
+      security:
+        - AdminToken: []
+      parameters:
+        - name: source_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - network_corpus
+              - dispute_case
+              - reference_work
+              - all
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - enabled
+              - disabled
+              - all
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+    post:
+      tags:
+        - Plagiarism
+      summary: Admin add a network/dispute corpus source with local semantic embedding
+      operationId: adminCreatePlagiarismCorpusSource
+      security:
+        - AdminToken: []
       requestBody:
         $ref: "#/components/requestBodies/JSONBody"
       responses:
