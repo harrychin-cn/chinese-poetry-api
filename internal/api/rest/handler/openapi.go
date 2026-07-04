@@ -36,6 +36,7 @@ tags:
   - name: Usage
   - name: Feedback
   - name: Works
+  - name: Certificates
   - name: Plagiarism
   - name: Admin
   - name: Enrichment
@@ -918,6 +919,61 @@ paths:
           $ref: "#/components/responses/OK"
         "404":
           $ref: "#/components/responses/BadRequest"
+  /api/v1/works/{id}/certificate:
+    get:
+      tags:
+        - Certificates
+        - Works
+      summary: Get or lazily issue the platform certificate for an owned public work
+      operationId: getWorkCertificate
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      tags:
+        - Certificates
+        - Works
+      summary: Issue the platform certificate for an owned public work
+      operationId: issueWorkCertificate
+      description: Reissuing the same work version returns the existing certificate hash and local anchor transaction ID.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/works/{id}/certificate/anchor:
+    post:
+      tags:
+        - Certificates
+        - Works
+      summary: Ensure the local blockchain-style certificate anchor exists
+      operationId: anchorWorkCertificate
+      description: Stage-7 MVP writes only hashes and certificate metadata to the local anchor summary, not the full work body.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/BadRequest"
   /api/v1/public/works/{code}:
     get:
       tags:
@@ -934,6 +990,25 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/OK"
+  /api/v1/public/works/{code}/certificate:
+    get:
+      tags:
+        - Certificates
+        - Works
+      summary: Get a public platform certificate by work code
+      operationId: getPublicWorkCertificate
+      security: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "404":
+          $ref: "#/components/responses/BadRequest"
   /api/v1/admin/api-keys:
     post:
       tags:

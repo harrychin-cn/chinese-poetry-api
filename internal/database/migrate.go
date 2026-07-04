@@ -729,6 +729,38 @@ func (db *DB) migrateOriginalWorkTables() error {
 		return err
 	}
 
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_certificates (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL UNIQUE,
+		api_key_id INTEGER NOT NULL,
+		certificate_code TEXT NOT NULL UNIQUE,
+		work_code TEXT NOT NULL,
+		work_version INTEGER NOT NULL,
+		title TEXT NOT NULL,
+		work_type TEXT NOT NULL,
+		content_hash TEXT NOT NULL,
+		license_type TEXT NOT NULL,
+		license_version TEXT NOT NULL,
+		certificate_hash TEXT NOT NULL,
+		signature_algorithm TEXT NOT NULL,
+		signature TEXT NOT NULL,
+		certificate_payload TEXT NOT NULL,
+		anchor_network TEXT NOT NULL,
+		anchor_status TEXT NOT NULL,
+		anchor_hash TEXT NOT NULL,
+		anchor_tx_id TEXT NOT NULL,
+		anchor_payload TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'issued',
+		issued_at DATETIME NOT NULL,
+		anchored_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_fingerprints (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		work_id INTEGER NOT NULL,
@@ -842,6 +874,9 @@ func (db *DB) migrateOriginalWorkTables() error {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_tips_work ON work_tips(work_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_tips_from_key ON work_tips(from_api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_tips_to_key ON work_tips(to_api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_certificates_work_code ON work_certificates(work_code)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_certificates_hash ON work_certificates(certificate_hash)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_certificates_anchor ON work_certificates(anchor_status, anchored_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_work ON image_generation_jobs(work_id, status, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_api_key ON image_generation_jobs(api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_audio_generation_jobs_work ON audio_generation_jobs(work_id, status, created_at)`)

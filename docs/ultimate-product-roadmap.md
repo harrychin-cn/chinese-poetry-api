@@ -525,6 +525,13 @@ IMAGE_MODEL=gpt-image-2
 - 可选上链；
 - 证书公开页。
 
+阶段 7 MVP 进展：
+
+- 新增 `work_certificates`，保存证书编号、作品版本、正文哈希、授权字段、平台签名和证书载荷。
+- 新增 `GET/POST /api/v1/works/:id/certificate`、`POST /api/v1/works/:id/certificate/anchor` 和 `GET /api/v1/public/works/:code/certificate`。
+- 新增公开证书页 `/certificates/:code`，展示证书哈希、平台签名和本地锚定摘要。
+- 区块链 MVP 先采用 `local-ledger` 本地哈希锚定；锚定载荷不写入作品全文。
+
 阶段结束标准：
 
 - 每个公开作品有唯一证书页；

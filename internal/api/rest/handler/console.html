@@ -266,6 +266,8 @@
         <button class="btn outline" id="generateWorkAudio" type="button">生成吟诵音频</button>
         <button class="btn outline" id="generateWorkMusic" type="button">生成配乐草稿</button>
         <button class="btn outline" id="refreshWorkAssets" type="button">刷新作品资产</button>
+        <button class="btn outline" id="issueWorkCertificate" type="button">Issue certificate</button>
+        <button class="btn outline" id="openCertificatePage" type="button">Open certificate</button>
       </div>
       <div class="profile-line"><span class="tiny" id="workEditHint">当前：新建作品</span></div>
       <div class="asset-list" id="workAssetList"><div class="soft-note">选择作品后显示图片 / 吟诵 / 配乐资产。</div></div>
@@ -367,7 +369,7 @@
       </div>
       <div class="soft-note" id="walletTransactions">Wallet ledger appears here after refresh.</div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/reverse-create /api/v1/works/reverse-jobs /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /api/v1/wallet /api/v1/wallet/transactions /api/v1/wallet/top-up /api/v1/works/:id/tip /api/v1/works/:id/tips /docs /pricing</div>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/reverse-create /api/v1/works/reverse-jobs /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /api/v1/wallet /api/v1/wallet/transactions /api/v1/wallet/top-up /api/v1/works/:id/tip /api/v1/works/:id/tips /api/v1/works/:id/certificate /api/v1/works/:id/certificate/anchor /api/v1/public/works/:code/certificate /certificates/:code /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -778,7 +780,8 @@
     box.innerHTML = works.map(function (w) {
       var active = state.selectedWork && String(state.selectedWork.id) === String(w.id);
       var publicLink = w.work_code ? ('<a class="tiny" data-action="open" data-id="' + w.id + '" href="' + apiURL('/api/v1/public/works/' + encodeURIComponent(w.work_code)) + '" target="_blank" rel="noopener">\u516c\u5f00 JSON</a>') : '';
-      return '<div class="work-item ' + (active ? 'active' : '') + '" data-id="' + w.id + '"><b>' + escapeHTML(w.title || "\u672a\u547d\u540d\u4f5c\u54c1") + '</b><span class="tiny">' + escapeHTML(w.status || "draft") + ' \u00b7 v' + escapeHTML(w.version || 1) + ' \u00b7 ' + escapeHTML(w.work_code || "\u672a\u53d1\u5e03") + '</span><span class="tiny"><button class="link-btn" data-action="edit" data-id="' + w.id + '" type="button">\u7f16\u8f91</button> <button class="link-btn" data-action="work-image" data-id="' + w.id + '" type="button">生图</button> <button class="link-btn" data-action="assets" data-id="' + w.id + '" type="button">图片</button> <button class="link-btn" data-action="report" data-id="' + w.id + '" type="button">\u67e5\u91cd\u62a5\u544a</button> ' + publicLink + '</span></div>';
+      var certLink = w.work_code ? (' <button class="link-btn" data-action="certificate" data-id="' + w.id + '" type="button">Certificate</button>') : '';
+      return '<div class="work-item ' + (active ? 'active' : '') + '" data-id="' + w.id + '"><b>' + escapeHTML(w.title || "\u672a\u547d\u540d\u4f5c\u54c1") + '</b><span class="tiny">' + escapeHTML(w.status || "draft") + ' \u00b7 v' + escapeHTML(w.version || 1) + ' \u00b7 ' + escapeHTML(w.work_code || "\u672a\u53d1\u5e03") + '</span><span class="tiny"><button class="link-btn" data-action="edit" data-id="' + w.id + '" type="button">\u7f16\u8f91</button> <button class="link-btn" data-action="work-image" data-id="' + w.id + '" type="button">生图</button> <button class="link-btn" data-action="assets" data-id="' + w.id + '" type="button">图片</button> <button class="link-btn" data-action="report" data-id="' + w.id + '" type="button">\u67e5\u91cd\u62a5\u544a</button> ' + publicLink + certLink + '</span></div>';
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll("[data-action]"), function (el) {
       el.onclick = function (ev) {
@@ -790,6 +793,7 @@
         if (action === "work-image") { fillWorkForm(work); generateImage(); }
         if (action === "assets") { fillWorkForm(work); loadWorkAssets(id, true); }
         if (action === "report") showWorkReport(id);
+        if (action === "certificate") { fillWorkForm(work); openSelectedCertificatePage(); }
         if (action === "open" && el.href) window.open(el.href, "_blank", "noopener");
       };
     });
@@ -1264,6 +1268,35 @@
   }
 
 
+  async function issueSelectedWorkCertificate() {
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
+    if (!selected) { toast("Select a published public work first"); return; }
+    var btn = $("issueWorkCertificate");
+    var old = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Issuing..."; }
+    try {
+      var json = await fetchJSON("/api/v1/works/" + selected.id + "/certificate", {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" })
+      });
+      var data = json.data || json;
+      if (data.work_code) { selected.work_code = data.work_code; state.selectedWork = selected; }
+      toast("Certificate ready: " + (data.certificate_code || selected.work_code || selected.id));
+      var url = data.public_certificate_url || (data.work_code ? ("/certificates/" + encodeURIComponent(data.work_code)) : "");
+      if (url) window.open(apiURL(url), "_blank", "noopener");
+    } catch (e) {
+      toast(e.message || "Certificate issue failed");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
+  }
+
+  function openSelectedCertificatePage() {
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
+    if (!selected || !selected.work_code) { toast("Select a published work with a work code first"); return; }
+    window.open(apiURL("/certificates/" + encodeURIComponent(selected.work_code)), "_blank", "noopener");
+  }
+
 
   function setWalletStatus(on, text) {
     var el = $("walletStatus");
@@ -1449,6 +1482,8 @@
   $("generateWorkAudio").onclick = generateWorkAudio;
   $("generateWorkMusic").onclick = generateWorkMusic;
   $("refreshWorkAssets").onclick = function () { if (!state.selectedWork) { toast("请先选择作品"); return; } loadWorkAssets(state.selectedWork.id, true); };
+  $("issueWorkCertificate").onclick = issueSelectedWorkCertificate;
+  $("openCertificatePage").onclick = openSelectedCertificatePage;
   $("workStatusFilter").onchange = function () { loadWorks(true); };
   $("query").addEventListener("input", function () {
     var before = state.activeScenario;

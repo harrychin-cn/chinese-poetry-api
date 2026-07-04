@@ -76,6 +76,7 @@ GET /api/v1/usage/endpoints
 GET /api/v1/usage/queries
 POST /api/v1/feedback
 GET /api/v1/public/works/:code
+GET /api/v1/public/works/:code/certificate
 POST /api/v1/works
 GET /api/v1/works
 POST /api/v1/works/reverse-create
@@ -95,6 +96,9 @@ POST /api/v1/works/:id/audio/generate
 POST /api/v1/works/:id/music/generate
 POST /api/v1/works/:id/tip
 GET /api/v1/works/:id/tips
+GET /api/v1/works/:id/certificate
+POST /api/v1/works/:id/certificate
+POST /api/v1/works/:id/certificate/anchor
 ```
 
 管理员后台接口需要 `X-Admin-Token`：
@@ -439,6 +443,30 @@ curl "http://localhost:1279/api/v1/works/1/tips" \
 ```
 
 Tip rules: users can tip only public published works, cannot tip their own works, and receive `402 insufficient wallet credits` with `recharge_endpoint=/api/v1/wallet/top-up` when the sender wallet is short. Reusing the same idempotency key returns the existing successful transfer without double-spending.
+
+## Stage 7 work certificate / local anchor MVP
+
+Published public works can now get a platform certificate. The certificate stores the work code, work version, content hash, license fields, a platform SHA-256 signature, and a local blockchain-style anchor summary. The MVP writes only hashes and certificate metadata to the anchor payload, not the full work body.
+
+```bash
+# Issue or refresh the certificate for an owned published public work
+curl -X POST "http://localhost:1279/api/v1/works/1/certificate" \
+  -H "X-API-Key: cp_live_xxx"
+
+# Read the owned certificate; eligible works are issued lazily
+curl "http://localhost:1279/api/v1/works/1/certificate" \
+  -H "X-API-Key: cp_live_xxx"
+
+# Ensure the local anchor summary exists
+curl -X POST "http://localhost:1279/api/v1/works/1/certificate/anchor" \
+  -H "X-API-Key: cp_live_xxx"
+
+# Public certificate JSON and public certificate page
+curl "http://localhost:1279/api/v1/public/works/PCQF-2026-00000001/certificate"
+open "http://localhost:1279/certificates/PCQF-2026-00000001"
+```
+
+Rules: only public published works with `original_commitment=true` and `license_accepted=true` can be certified. Reissuing the same work version returns the same certificate hash and local anchor transaction ID.
 
 ## 查看 API Key 与今日用量
 
