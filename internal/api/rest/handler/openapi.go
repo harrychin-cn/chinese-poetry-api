@@ -36,7 +36,9 @@ tags:
   - name: Usage
   - name: Feedback
   - name: Works
+  - name: Library
   - name: Certificates
+  - name: Partners
   - name: Plagiarism
   - name: Admin
   - name: Enrichment
@@ -974,6 +976,108 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/BadRequest"
+  /api/v1/public/works:
+    get:
+      tags:
+        - Library
+        - Works
+      summary: Search the global public original works library
+      operationId: listPublicOriginalWorks
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: work_type
+          in: query
+          schema:
+            type: string
+        - name: author
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [latest, tips, popular, activity, oldest, title]
+        - name: lang
+          in: query
+          schema:
+            type: string
+            enum: [zh-CN, en]
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/public/rankings/works:
+    get:
+      tags:
+        - Library
+        - Works
+      summary: List public work leaderboard
+      operationId: listPublicWorkRankings
+      security: []
+      parameters:
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [tips, latest, activity]
+            default: tips
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/public/rankings/authors:
+    get:
+      tags:
+        - Library
+      summary: List public author leaderboard
+      operationId: listPublicAuthorRankings
+      security: []
+      parameters:
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [works, tips, latest]
+            default: works
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /api/v1/partners/works/export:
+    get:
+      tags:
+        - Partners
+        - Library
+      summary: Export public works for partners
+      operationId: exportPartnerPublicWorks
+      description: Requires X-API-Key and returns public published works with author attribution, license metadata, and certificate links.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: author
+          in: query
+          schema:
+            type: string
+        - name: lang
+          in: query
+          schema:
+            type: string
+            enum: [zh-CN, en]
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/public/works/{code}:
     get:
       tags:

@@ -553,6 +553,14 @@ IMAGE_MODEL=gpt-image-2
 - 多语言介绍；
 - 数据导出与合作授权。
 
+阶段 8 MVP 进展：
+
+- 新增公开作品库页 `/library`，可搜索公开作品并查看打赏榜。
+- 新增 `GET /api/v1/public/works`，支持 `q`、`work_type`、`author`、`sort`、`lang`、`limit` 查询公开作品。
+- 新增 `GET /api/v1/public/rankings/works` 和 `GET /api/v1/public/rankings/authors`，提供作品榜单和作者榜单。
+- 新增受保护合作接口 `GET /api/v1/partners/works/export`，用于导出公开作品、作者署名、授权和证书链接。
+- 多语言 MVP 先提供中英文元数据、类型标签和授权说明，不自动翻译作品正文。
+
 阶段结束标准：
 
 - 平台不只服务个人创作，也能服务开发者、学校、文旅、内容平台。

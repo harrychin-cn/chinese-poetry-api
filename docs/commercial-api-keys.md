@@ -75,8 +75,12 @@ GET /api/v1/usage/daily
 GET /api/v1/usage/endpoints
 GET /api/v1/usage/queries
 POST /api/v1/feedback
+GET /api/v1/public/works
 GET /api/v1/public/works/:code
 GET /api/v1/public/works/:code/certificate
+GET /api/v1/public/rankings/works
+GET /api/v1/public/rankings/authors
+GET /api/v1/partners/works/export
 POST /api/v1/works
 GET /api/v1/works
 POST /api/v1/works/reverse-create
@@ -467,6 +471,28 @@ open "http://localhost:1279/certificates/PCQF-2026-00000001"
 ```
 
 Rules: only public published works with `original_commitment=true` and `license_accepted=true` can be certified. Reissuing the same work version returns the same certificate hash and local anchor transaction ID.
+
+## Stage 8 global works library MVP
+
+Published public works are now discoverable from a global library page and API. The MVP includes searchable public works, author profile links, work and author leaderboards, Chinese/English metadata labels, and a protected partner export endpoint.
+
+```bash
+# Public library page
+open "http://localhost:1279/library"
+
+# Search public works with localized labels
+curl "http://localhost:1279/api/v1/public/works?q=moon&sort=latest&lang=en"
+
+# Work and author leaderboards
+curl "http://localhost:1279/api/v1/public/rankings/works?metric=tips&limit=20"
+curl "http://localhost:1279/api/v1/public/rankings/authors?metric=works&limit=20"
+
+# Partner export requires a commercial API key
+curl "http://localhost:1279/api/v1/partners/works/export?limit=100&lang=en" \
+  -H "X-API-Key: cp_live_xxx"
+```
+
+Export rules: partner export contains public published works only. Reusers should preserve author attribution, `work_code`, license metadata, certificate links, and dispute takedown information.
 
 ## 查看 API Key 与今日用量
 
