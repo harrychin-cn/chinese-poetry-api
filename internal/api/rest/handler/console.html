@@ -247,9 +247,21 @@
         <label class="check-pill"><input id="workLicense" type="checkbox" checked />接受授权</label>
         <label class="check-pill"><input id="workUsePrompt" type="checkbox" checked />同步生图提示</label>
       </div>
+      <label for="reverseSource">&#x53cd;&#x5411;&#x521b;&#x4f5c;&#x6765;&#x6e90;</label>
+      <textarea id="reverseSource" maxlength="3000" placeholder="&#x7c98;&#x8d34;&#x6545;&#x4e8b;&#x3001;&#x610f;&#x5883;&#x6216;&#x56fe;&#x7247;&#x8bf4;&#x660e;&#xff0c;&#x70b9;&#x51fb;&#x53cd;&#x5411;&#x751f;&#x6210;&#x540e;&#x53ef;&#x5148;&#x5ba1;&#x7a3f;&#x518d;&#x53d1;&#x5e03;"></textarea>
+      <div class="form-grid">
+        <div><label for="reverseSourceType">&#x6765;&#x6e90;&#x7c7b;&#x578b;</label><select id="reverseSourceType"><option value="story">&#x6545;&#x4e8b;</option><option value="image">&#x56fe;&#x7247;&#x8bf4;&#x660e;</option><option value="mood">&#x610f;&#x5883;</option><option value="prompt">Prompt</option></select></div>
+        <div><label for="reverseWorkType">&#x76ee;&#x6807;&#x4f53;&#x88c1;</label><select id="reverseWorkType"><option value="poem">&#x8bd7;</option><option value="ci">&#x8bcd;</option><option value="qu">&#x66f2;</option><option value="fu">&#x8d4b;</option></select></div>
+      </div>
+      <label for="reverseTitle">&#x53ef;&#x9009;&#x6807;&#x9898;</label>
+      <input id="reverseTitle" placeholder="&#x4e0d;&#x586b;&#x5219;&#x81ea;&#x52a8;&#x4ece;&#x6765;&#x6e90;&#x63d0;&#x53d6;" />
+      <div class="inline-checks">
+        <label class="check-pill"><input id="reverseSave" type="checkbox" checked />&#x751f;&#x6210;&#x540e;&#x4fdd;&#x5b58;&#x4e3a;&#x79c1;&#x6709;&#x8349;&#x7a3f;</label>
+      </div>
       <div class="wide-actions">
         <button class="btn primary" id="saveWork" type="button">保存作品</button>
         <button class="btn ghost" id="newWork" type="button">新建草稿</button>
+        <button class="btn outline" id="reverseCreate" type="button">&#x53cd;&#x5411;&#x751f;&#x6210;&#x8bd7;&#x8bcd;&#x66f2;&#x8d4b;</button>
         <button class="btn outline" id="generateWorkImage" type="button">生成当前作品图</button>
         <button class="btn outline" id="generateWorkAudio" type="button">生成吟诵音频</button>
         <button class="btn outline" id="generateWorkMusic" type="button">生成配乐草稿</button>
@@ -327,7 +339,7 @@
         <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
       </div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /docs /pricing</div>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/reverse-create /api/v1/works/reverse-jobs /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -1098,6 +1110,65 @@
     }
   }
 
+  async function reverseCreate() {
+    var key = requireKey();
+    var source = (($("reverseSource") && $("reverseSource").value) || "").trim();
+    if (!source) {
+      toast("\u8bf7\u5148\u586b\u5199\u6545\u4e8b\u3001\u610f\u5883\u6216\u56fe\u7247\u8bf4\u660e");
+      return;
+    }
+    var btn = $("reverseCreate");
+    var oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "\u751f\u6210\u4e2d...";
+    try {
+      var payload = {
+        source_type: $("reverseSourceType").value || "story",
+        source_text: source,
+        work_type: $("reverseWorkType").value || "poem",
+        title: (($("reverseTitle") && $("reverseTitle").value) || "").trim(),
+        style: (($("style") && $("style").value) || "").trim(),
+        save: $("reverseSave").checked
+      };
+      var json = await fetchJSON("/api/v1/works/reverse-create", {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload)
+      });
+      var data = json.data || json;
+      $("workTitle").value = data.title || "";
+      $("workType").value = data.work_type || payload.work_type || "poem";
+      $("workContent").value = data.content || "";
+      $("workDesc").value = "\u53cd\u5411\u521b\u4f5c\u8349\u7a3f\uff1a\u8bf7\u5ba1\u7a3f\u540e\u518d\u53d1\u5e03";
+      $("workPublish").checked = false;
+      $("workOriginal").checked = false;
+      $("workLicense").checked = false;
+      renderPoem({
+        title: data.title || "\u53cd\u5411\u521b\u4f5c\u8349\u7a3f",
+        author: { name: "\u53cd\u5411\u521b\u4f5c" },
+        dynasty: { name: "\u4eca" },
+        type: { name: data.work_type || payload.work_type || "poem" },
+        content: normalizeLines(data.content || "")
+      });
+      if (data.work) {
+        await loadWorks(false);
+        var found = (state.works || []).find(function (w) { return String(w.id) === String(data.work.id); });
+        fillWorkForm(found || data.work);
+        toast("\u5df2\u53cd\u5411\u751f\u6210\u5e76\u4fdd\u5b58\u4e3a\u79c1\u6709\u8349\u7a3f");
+      } else {
+        state.selectedWork = null;
+        renderWorks(state.works || []);
+        toast("\u5df2\u53cd\u5411\u751f\u6210\uff0c\u8bf7\u5ba1\u7a3f\u540e\u624b\u52a8\u4fdd\u5b58");
+      }
+      refreshStatus();
+    } catch (e) {
+      toast(e.message || "\u53cd\u5411\u521b\u4f5c\u5931\u8d25");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+
   async function generateWorkAudio() {
     var key = requireKey();
     var audioKey = requireImageKey();
@@ -1230,6 +1301,7 @@
   $("openProfile").onclick = openProfilePage;
   $("saveWork").onclick = saveWork;
   $("newWork").onclick = clearWorkForm;
+  $("reverseCreate").onclick = reverseCreate;
   $("generateWorkImage").onclick = function () { if (!state.selectedWork) { toast("请先选择一个作品"); return; } generateImage(); };
   $("generateWorkAudio").onclick = generateWorkAudio;
   $("generateWorkMusic").onclick = generateWorkMusic;

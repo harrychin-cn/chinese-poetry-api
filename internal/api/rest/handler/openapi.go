@@ -580,6 +580,39 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/OK"
+  /api/v1/works/reverse-create:
+    post:
+      tags:
+        - Works
+      summary: Reverse-create a Chinese poetry draft from a story, image note, or mood
+      operationId: reverseCreateWork
+      description: Stage-5 MVP creates a deterministic editable draft locally and can save it as a private work draft. It does not publish automatically and does not consume external model quota.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/works/reverse-jobs:
+    get:
+      tags:
+        - Works
+      summary: List reverse-creation jobs for the current API key
+      operationId: listReverseCreationJobs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/works/{id}:
     get:
       tags:

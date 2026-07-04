@@ -653,6 +653,29 @@ func (db *DB) migrateOriginalWorkTables() error {
 		return err
 	}
 
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS reverse_creation_jobs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER NOT NULL,
+		work_id INTEGER,
+		status TEXT NOT NULL DEFAULT 'pending',
+		source_type TEXT NOT NULL DEFAULT 'story',
+		source_text TEXT,
+		image_url TEXT,
+		work_type TEXT NOT NULL DEFAULT 'poem',
+		style TEXT,
+		prompt TEXT NOT NULL,
+		generated_title TEXT,
+		generated_content TEXT,
+		error_message TEXT,
+		model TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
+		FOREIGN KEY (work_id) REFERENCES original_works(id)
+	)`).Error; err != nil {
+		return err
+	}
+
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS credit_wallets (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		api_key_id INTEGER NOT NULL UNIQUE,
@@ -804,6 +827,8 @@ func (db *DB) migrateOriginalWorkTables() error {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_audio_generation_jobs_api_key ON audio_generation_jobs(api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_music_generation_jobs_work ON music_generation_jobs(work_id, status, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_music_generation_jobs_api_key ON music_generation_jobs(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reverse_creation_jobs_api_key ON reverse_creation_jobs(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reverse_creation_jobs_work ON reverse_creation_jobs(work_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_fingerprints_work ON work_fingerprints(work_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_fingerprints_hash ON work_fingerprints(normalized_hash)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_plagiarism_reports_work ON plagiarism_reports(work_id, created_at)`)

@@ -72,6 +72,8 @@ POST /api/v1/feedback
 GET /api/v1/public/works/:code
 POST /api/v1/works
 GET /api/v1/works
+POST /api/v1/works/reverse-create
+GET /api/v1/works/reverse-jobs
 GET /api/v1/works/:id
 PATCH /api/v1/works/:id
 POST /api/v1/works/:id/publish
@@ -286,6 +288,26 @@ curl "http://localhost:1279/api/v1/works/1/versions" -H "X-API-Key: cp_live_xxx"
 curl "http://localhost:1279/api/v1/works/1/license-acceptances" -H "X-API-Key: cp_live_xxx"
 curl "http://localhost:1279/api/v1/works/1/plagiarism-report" -H "X-API-Key: cp_live_xxx"
 curl "http://localhost:1279/api/v1/public/works/PCQF-2026-00000001"
+```
+
+## Stage 5 reverse creation MVP
+
+Create an editable draft from a story, mood, or image description. The MVP is local and deterministic: it does not call an external model, does not spend credits, and saved results remain private drafts until the user reviews and publishes them through the normal originality/license flow.
+
+```bash
+# Preview only: create prompt/job and return a draft, but do not save a work
+curl -X POST "http://localhost:1279/api/v1/works/reverse-create" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"source_type":"story","source_text":"a traveler sees moonlight on a small boat","work_type":"poem","dry_run":true}'
+
+# Save as a private draft work
+curl -X POST "http://localhost:1279/api/v1/works/reverse-create" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"source_type":"image","source_text":"old bridge after rain, stone road, one warm lamp","image_url":"https://example.com/bridge.png","work_type":"ci","save":true}'
+
+curl "http://localhost:1279/api/v1/works/reverse-jobs" -H "X-API-Key: cp_live_xxx"
 ```
 
 
