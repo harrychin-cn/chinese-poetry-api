@@ -129,6 +129,44 @@ func TestGetOrCreateAuthor(t *testing.T) {
 	}
 }
 
+func TestGetOrCreateAuthorSeparatesSameNameAcrossDynasties(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	tangID, err := repo.GetOrCreateDynasty("唐")
+	require.NoError(t, err)
+	songID, err := repo.GetOrCreateDynasty("宋")
+	require.NoError(t, err)
+
+	tangAuthorID, err := repo.GetOrCreateAuthor("无名氏", tangID)
+	require.NoError(t, err)
+	songAuthorID, err := repo.GetOrCreateAuthor("无名氏", songID)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, tangAuthorID, songAuthorID, "same author name in different dynasties must not share one row")
+
+	tangAuthorAgainID, err := repo.GetOrCreateAuthor("无名氏", tangID)
+	require.NoError(t, err)
+	assert.Equal(t, tangAuthorID, tangAuthorAgainID, "same name and same dynasty should reuse one row")
+}
+
+func TestCachedRepositoryAuthorCacheSeparatesDynasties(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCachedRepository(NewRepository(db))
+
+	tangID, err := repo.GetOrCreateDynasty("唐")
+	require.NoError(t, err)
+	songID, err := repo.GetOrCreateDynasty("宋")
+	require.NoError(t, err)
+
+	tangAuthorID, err := repo.GetOrCreateAuthor("无名氏", tangID)
+	require.NoError(t, err)
+	songAuthorID, err := repo.GetOrCreateAuthor("无名氏", songID)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, tangAuthorID, songAuthorID, "cache key must include dynasty_id")
+}
+
 func TestGetPoetryTypeID(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)

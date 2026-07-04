@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // DataConfig represents the structure of datas.json
@@ -135,6 +136,7 @@ func (l *JSONLoader) loadDataset(key string, dataset DatasetInfo) ([]PoemWithMet
 			}
 
 			filePath := filepath.Join(fullPath, entry.Name())
+			fileDynasty := inferDynastyForFile(key, entry.Name(), dynasty)
 			filePoems, err := l.loadJSONFile(filePath, dataset.Tag)
 			if err != nil {
 				fmt.Printf("Warning: failed to load %s: %v\n", filePath, err)
@@ -144,7 +146,7 @@ func (l *JSONLoader) loadDataset(key string, dataset DatasetInfo) ([]PoemWithMet
 			for _, poem := range filePoems {
 				poemWithMeta := PoemWithMeta{
 					PoemData:    poem,
-					Dynasty:     dynasty,
+					Dynasty:     fileDynasty,
 					DatasetName: dataset.Name,
 					DatasetKey:  key,
 				}
@@ -287,6 +289,30 @@ func inferDynasty(key, name string) string {
 	}
 
 	return "其他"
+}
+
+// inferDynastyForFile handles mixed-dynasty datasets whose directory contains
+// both Tang and Song files. In poetry-data/全唐诗, poet.tang.*.json and
+// poet.song.*.json live under the same "tangsong" dataset; using only the
+// dataset-level dynasty would mark all Song poems and authors as Tang.
+func inferDynastyForFile(datasetKey, fileName, fallback string) string {
+	if datasetKey != "tangsong" {
+		return fallback
+	}
+
+	lowerName := strings.ToLower(fileName)
+	switch {
+	case strings.HasPrefix(lowerName, "poet.song.") ||
+		strings.HasPrefix(lowerName, "author.song") ||
+		strings.HasPrefix(lowerName, "authors.song"):
+		return "宋"
+	case strings.HasPrefix(lowerName, "poet.tang.") ||
+		strings.HasPrefix(lowerName, "author.tang") ||
+		strings.HasPrefix(lowerName, "authors.tang"):
+		return "唐"
+	default:
+		return fallback
+	}
 }
 
 // getDefaultAuthorFromDataset returns the default author for datasets that don't have author field

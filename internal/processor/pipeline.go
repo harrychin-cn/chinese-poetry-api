@@ -119,9 +119,14 @@ func (p *Processor) prewarmCache(poems []loader.PoemWithMeta) error {
 		}
 	}
 
-	// Extract unique authors (more, but still manageable ~10k)
+	// Extract unique author + dynasty pairs (more, but still manageable ~10k).
+	// Some author names repeat across dynasties, so name alone is not a safe key.
 	// We need dynasty IDs first, so dynasties must be cached before this
-	authorSet := make(map[string]string) // author name -> dynasty name
+	type authorDynasty struct {
+		author  string
+		dynasty string
+	}
+	authorSet := make(map[authorDynasty]struct{})
 	for _, poem := range poems {
 		author := classifier.NormalizeText(poem.Author)
 		if author == "" {
@@ -132,26 +137,24 @@ func (p *Processor) prewarmCache(poems []loader.PoemWithMeta) error {
 		if err != nil {
 			continue
 		}
-		if _, exists := authorSet[converted]; !exists {
-			dynasty := poem.Dynasty
-			if dynasty != "" {
-				dynasty, _ = p.convertText(dynasty, p.convertToTraditional)
-			}
-			authorSet[converted] = dynasty
+		dynasty := poem.Dynasty
+		if dynasty != "" {
+			dynasty, _ = p.convertText(dynasty, p.convertToTraditional)
 		}
+		authorSet[authorDynasty{author: converted, dynasty: dynasty}] = struct{}{}
 	}
 
 	// Pre-warm author cache
-	for author, dynasty := range authorSet {
+	for pair := range authorSet {
 		var dynastyID int64 = 0
-		if dynasty != "" {
+		if pair.dynasty != "" {
 			var err error
-			dynastyID, err = p.repo.GetOrCreateDynasty(dynasty)
+			dynastyID, err = p.repo.GetOrCreateDynasty(pair.dynasty)
 			if err != nil {
 				continue // Will be handled during processing
 			}
 		}
-		if _, err := p.repo.GetOrCreateAuthor(author, dynastyID); err != nil {
+		if _, err := p.repo.GetOrCreateAuthor(pair.author, dynastyID); err != nil {
 			// Log but don't fail - will be retried during processing
 			continue
 		}

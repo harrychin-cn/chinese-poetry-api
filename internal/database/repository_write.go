@@ -40,10 +40,10 @@ func (r *Repository) GetOrCreateDynasty(name string) (int64, error) {
 	return dynasty.ID, nil
 }
 
-// GetOrCreateAuthor gets or creates an author in a thread-safe manner
-// Uses Name as unique key and ON CONFLICT to handle concurrent inserts
-// Note: Author's dynasty_id is set on first creation and not updated
-// This is because some authors appear in multiple dynasty datasets
+// GetOrCreateAuthor gets or creates an author in a thread-safe manner.
+// Authors are unique by (name, dynasty_id), not name alone. The source data has
+// repeated names across dynasties; using only name can attach Song poems to a
+// Tang author record or vice versa.
 func (r *Repository) GetOrCreateAuthor(name string, dynastyID int64) (int64, error) {
 	author := Author{
 		Name:      name,
@@ -53,7 +53,7 @@ func (r *Repository) GetOrCreateAuthor(name string, dynastyID int64) (int64, err
 	// Try to create the author with ON CONFLICT DO NOTHING
 	// This handles concurrent inserts gracefully
 	err := r.db.Table(r.authorsTable()).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "name"}},
+		Columns:   []clause.Column{{Name: "name"}, {Name: "dynasty_id"}},
 		DoNothing: true, // Ignore if already exists
 	}).Create(&author).Error
 	if err != nil {
@@ -63,7 +63,9 @@ func (r *Repository) GetOrCreateAuthor(name string, dynastyID int64) (int64, err
 	// If author.ID is 0, it means the insert was skipped (already exists)
 	// We need to fetch the existing author
 	if author.ID == 0 {
-		err = r.db.Table(r.authorsTable()).Where("name = ?", name).First(&author).Error
+		err = r.db.Table(r.authorsTable()).
+			Where("name = ? AND dynasty_id = ?", name, dynastyID).
+			First(&author).Error
 		if err != nil {
 			return 0, err
 		}

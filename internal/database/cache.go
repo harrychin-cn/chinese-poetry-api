@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -125,9 +126,11 @@ func (r *CachedRepository) GetPoetryTypeIDs(names []string) ([]int64, error) {
 
 // GetOrCreateAuthor gets or creates an author with caching
 func (r *CachedRepository) GetOrCreateAuthor(name string, dynastyID int64) (int64, error) {
-	// Try to get from cache first (use name as key since it's unique)
+	cacheKey := authorCacheKey(name, dynastyID)
+
+	// Try to get from cache first
 	r.authorCacheMu.RLock()
-	if id, ok := r.authorCache[name]; ok {
+	if id, ok := r.authorCache[cacheKey]; ok {
 		r.authorCacheMu.RUnlock()
 		return id, nil
 	}
@@ -141,10 +144,14 @@ func (r *CachedRepository) GetOrCreateAuthor(name string, dynastyID int64) (int6
 
 	// Store in cache
 	r.authorCacheMu.Lock()
-	r.authorCache[name] = id
+	r.authorCache[cacheKey] = id
 	r.authorCacheMu.Unlock()
 
 	return id, nil
+}
+
+func authorCacheKey(name string, dynastyID int64) string {
+	return fmt.Sprintf("%d\x00%s", dynastyID, name)
 }
 
 // ClearCache clears all caches

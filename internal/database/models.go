@@ -24,11 +24,11 @@ func (Dynasty) TableName() string {
 // Author represents a poet or author
 type Author struct {
 	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"` // Auto-increment ID
-	Name        string    `gorm:"not null;uniqueIndex" json:"name"`   // uniqueIndex prevents duplicates
-	DynastyID   *int64    `gorm:"index"                json:"dynasty_id,omitempty"`
+	Name        string    `gorm:"not null;uniqueIndex:idx_author_name_dynasty,priority:1" json:"name"`
+	DynastyID   *int64    `gorm:"index;uniqueIndex:idx_author_name_dynasty,priority:2" json:"dynasty_id,omitempty"`
 	Dynasty     *Dynasty  `gorm:"foreignKey:DynastyID" json:"dynasty,omitempty"`
-	Description *string   `                            json:"description,omitempty"`
-	CreatedAt   time.Time `gorm:"autoCreateTime"       json:"created_at"`
+	Description *string   `json:"description,omitempty"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 // TableName specifies the table name for Author

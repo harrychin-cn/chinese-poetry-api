@@ -687,11 +687,12 @@ func (db *DB) migrateTablesForLang(lang Lang) error {
 	// Create authors table
 	authorSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
 		dynasty_id INTEGER,
 		description TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (dynasty_id) REFERENCES %s(id)
+		FOREIGN KEY (dynasty_id) REFERENCES %s(id),
+		UNIQUE(name, dynasty_id)
 	)`, authorTable, dynastyTable)
 	if err := db.Exec(authorSQL).Error; err != nil {
 		return fmt.Errorf("failed to create %s: %w", authorTable, err)
