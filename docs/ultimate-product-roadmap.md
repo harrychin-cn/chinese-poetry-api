@@ -391,6 +391,7 @@ IMAGE_MODEL=gpt-image-2
 
 - 生成图片；
 - 保存图片资产；
+- 保存本地文件资产 URL 与 checksum；
 - 重新生成；
 - 下载图片。
 
@@ -399,12 +400,14 @@ IMAGE_MODEL=gpt-image-2
 - `media_assets`
 - `image_generation_jobs`
 - `image_prompts`
+- `credit_wallets`
+- `credit_transactions`
 
 阶段结束标准：
 
 - 一首作品可以生成至少一张相关意境图；
 - 图片必须引用原文意象；
-- 生图消耗进入积分/余额流水。
+- 生图消耗进入积分流水，缓存命中不重复扣分。
 
 ### 阶段 4：吟诵、配乐与诗词音乐
 

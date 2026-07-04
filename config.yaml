@@ -50,6 +50,10 @@ image:
   quality: "high"
   output_format: "png"
   timeout_seconds: 180
+  storage_dir: "data/media-assets"
+  public_base_path: "/media-assets"
+  credit_cost: 1
+  initial_credits: 20
 
 graphql:
   playground: false  # Enable GraphQL Playground (set to true for development)

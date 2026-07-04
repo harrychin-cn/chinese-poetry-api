@@ -708,7 +708,7 @@ paths:
         - Images
       summary: Generate or dry-run a work-aware poetry painting image
       operationId: generateWorkImage
-      description: dry_run=true only prepares and stores the prompt/job, without calling the image gateway or consuming quota. Real generation stores a media asset and one image-generation job. Identical work/prompt/model/size requests reuse a cached image asset by default; set force_regenerate=true to bypass cache.
+      description: dry_run=true only prepares and stores the prompt/job, without calling the image gateway or consuming quota/credits. Real generation stores a local media asset URL, records one image-generation job, and spends image credits after success. Identical work/prompt/model/size requests reuse a cached image asset by default without spending credits; set force_regenerate=true to bypass cache.
       security:
         - ApiKeyAuth: []
       parameters:

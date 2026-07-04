@@ -244,6 +244,10 @@ IMAGE_MODEL=gpt-image-2
 IMAGE_QUALITY=high
 IMAGE_OUTPUT_FORMAT=png
 IMAGE_TIMEOUT_SECONDS=180
+IMAGE_STORAGE_DIR=data/media-assets
+IMAGE_PUBLIC_BASE_PATH=/media-assets
+IMAGE_CREDIT_COST=1
+IMAGE_INITIAL_CREDITS=20
 ```
 
 ## 原创作品库 MVP
@@ -328,7 +332,9 @@ curl -X POST "http://localhost:1279/api/v1/works/1/images/generate" \
 curl "http://localhost:1279/api/v1/works/1/image-jobs" -H "X-API-Key: cp_live_xxx"
 ```
 
-这个入口会把原创作品正文、作品 `image_prompt`、本次补充要求合并成“画中题诗”的完整生图提示词。`dry_run=true` 只落库任务和 Prompt；真实生成成功后才保存 `media_assets` 并记录一次本地 API Key 用量。相同 work/prompt/model/size/quality/output_format 默认复用最近一次图片资产，返回 `cached=true`、新增成功任务并关联同一资产，不调用生图网关、不增加本地用量；需要强制重生时传 `"force_regenerate": true`。
+这个入口会把原创作品正文、作品 `image_prompt`、本次补充要求合并成“画中题诗”的完整生图提示词。`dry_run=true` 只落库任务和 Prompt；真实生成成功后会把图片文件保存到 `IMAGE_STORAGE_DIR`，用 `/media-assets/...` 形式返回正式资产 URL，同时保存 `media_assets`、`image_generation_jobs`，并记录一次本地 API Key 用量。
+
+积分规则（阶段 3 MVP）：每个 API Key 首次使用会初始化 `IMAGE_INITIAL_CREDITS` 积分，真实生图成功扣 `IMAGE_CREDIT_COST` 分并写入 `credit_transactions`；`dry_run` 和缓存命中不扣分。余额不足时返回 `402 insufficient image credits` 和充值入口。相同 work/prompt/model/size/quality/output_format 默认复用最近一次图片资产，返回 `cached=true`、新增成功任务并关联同一资产，不调用生图网关、不增加本地用量、不扣积分；需要强制重生时传 `"force_regenerate": true`。
 
 ## 查看 API Key 与今日用量
 

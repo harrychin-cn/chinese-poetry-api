@@ -556,11 +556,35 @@ func (db *DB) migrateOriginalWorkTables() error {
 		output_format TEXT,
 		prompt TEXT,
 		revised_prompt TEXT,
+		storage_provider TEXT,
+		storage_key TEXT,
+		file_path TEXT,
+		byte_size INTEGER NOT NULL DEFAULT 0,
+		checksum_sha256 TEXT,
+		credit_cost INTEGER NOT NULL DEFAULT 0,
 		visibility TEXT NOT NULL DEFAULT 'private',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (work_id) REFERENCES original_works(id),
 		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
 	)`).Error; err != nil {
+		return err
+	}
+	if err := db.ensureColumn("media_assets", "storage_provider", "storage_provider TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("media_assets", "storage_key", "storage_key TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("media_assets", "file_path", "file_path TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("media_assets", "byte_size", "byte_size INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("media_assets", "checksum_sha256", "checksum_sha256 TEXT"); err != nil {
+		return err
+	}
+	if err := db.ensureColumn("media_assets", "credit_cost", "credit_cost INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 
@@ -582,6 +606,41 @@ func (db *DB) migrateOriginalWorkTables() error {
 		FOREIGN KEY (work_id) REFERENCES original_works(id),
 		FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
 		FOREIGN KEY (media_asset_id) REFERENCES media_assets(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS credit_wallets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		api_key_id INTEGER NOT NULL UNIQUE,
+		balance INTEGER NOT NULL DEFAULT 0,
+		total_granted INTEGER NOT NULL DEFAULT 0,
+		total_spent INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+	)`).Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS credit_transactions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		wallet_id INTEGER NOT NULL,
+		api_key_id INTEGER NOT NULL,
+		work_id INTEGER,
+		media_asset_id INTEGER,
+		job_id INTEGER,
+		transaction_type TEXT NOT NULL,
+		amount INTEGER NOT NULL,
+		balance_after INTEGER NOT NULL,
+		reason TEXT,
+		idempotency_key TEXT UNIQUE,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (wallet_id) REFERENCES credit_wallets(id),
+		FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (media_asset_id) REFERENCES media_assets(id),
+		FOREIGN KEY (job_id) REFERENCES image_generation_jobs(id)
 	)`).Error; err != nil {
 		return err
 	}
@@ -692,6 +751,10 @@ func (db *DB) migrateOriginalWorkTables() error {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_prompts_work ON image_prompts(work_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_media_assets_work ON media_assets(work_id, asset_type, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_media_assets_api_key ON media_assets(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_media_assets_storage ON media_assets(storage_provider, storage_key)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_credit_wallets_api_key ON credit_wallets(api_key_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_credit_transactions_api_key ON credit_transactions(api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_credit_transactions_work ON credit_transactions(work_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_work ON image_generation_jobs(work_id, status, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_api_key ON image_generation_jobs(api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_fingerprints_work ON work_fingerprints(work_id, created_at)`)

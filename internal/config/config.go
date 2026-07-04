@@ -88,6 +88,10 @@ type ImageConfig struct {
 	Quality        string `mapstructure:"quality"`
 	OutputFormat   string `mapstructure:"output_format"`
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+	StorageDir     string `mapstructure:"storage_dir"`
+	PublicBasePath string `mapstructure:"public_base_path"`
+	CreditCost     int    `mapstructure:"credit_cost"`
+	InitialCredits int    `mapstructure:"initial_credits"`
 }
 
 // GraphQLConfig holds GraphQL configuration
@@ -168,6 +172,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("image.quality", "high")
 	v.SetDefault("image.output_format", "png")
 	v.SetDefault("image.timeout_seconds", 180)
+	v.SetDefault("image.storage_dir", "data/media-assets")
+	v.SetDefault("image.public_base_path", "/media-assets")
+	v.SetDefault("image.credit_cost", 1)
+	v.SetDefault("image.initial_credits", 20)
 	v.SetDefault("graphql.playground", false)
 	v.SetDefault("graphql.introspection", true)
 	v.SetDefault("graphql.complexity_limit", 1000)
@@ -305,6 +313,22 @@ func bindEnvVars(v *viper.Viper) {
 			v.Set("image.timeout_seconds", value)
 		}
 	}
+	if storageDir := os.Getenv("IMAGE_STORAGE_DIR"); storageDir != "" {
+		v.Set("image.storage_dir", storageDir)
+	}
+	if publicBasePath := os.Getenv("IMAGE_PUBLIC_BASE_PATH"); publicBasePath != "" {
+		v.Set("image.public_base_path", publicBasePath)
+	}
+	if creditCost := os.Getenv("IMAGE_CREDIT_COST"); creditCost != "" {
+		if value, err := strconv.Atoi(creditCost); err == nil {
+			v.Set("image.credit_cost", value)
+		}
+	}
+	if initialCredits := os.Getenv("IMAGE_INITIAL_CREDITS"); initialCredits != "" {
+		if value, err := strconv.Atoi(initialCredits); err == nil {
+			v.Set("image.initial_credits", value)
+		}
+	}
 
 	// Database connection pool
 	if maxOpen := os.Getenv("DB_MAX_OPEN_CONNS"); maxOpen != "" {
@@ -389,6 +413,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Image.TimeoutSeconds <= 0 {
 		return fmt.Errorf("image timeout_seconds must be positive")
+	}
+	if c.Image.CreditCost < 0 {
+		return fmt.Errorf("image credit_cost cannot be negative")
+	}
+	if c.Image.InitialCredits < 0 {
+		return fmt.Errorf("image initial_credits cannot be negative")
 	}
 
 	return nil

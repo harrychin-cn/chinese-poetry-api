@@ -148,6 +148,10 @@
     .check-pill { display: flex; align-items: center; gap: 8px; border: 1px solid #eadac5; border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,.38); font-weight: 800; color: #5f4d3c; }
     .check-pill input { width: auto; }
     .profile-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .asset-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; max-height: 168px; overflow: auto; }
+    .asset-thumb { border: 1px solid #eadac5; border-radius: 12px; padding: 6px; background: rgba(255,253,247,.72); min-height: 72px; text-align: left; }
+    .asset-thumb img { width: 100%; height: 72px; object-fit: cover; border-radius: 8px; display: block; background: #f6ead7; }
+    .asset-thumb span { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     @media (max-width: 1050px) {
       body { overflow: auto; }
       .app { display: block; height: auto; }
@@ -242,8 +246,11 @@
       <div class="wide-actions">
         <button class="btn primary" id="saveWork" type="button">保存作品</button>
         <button class="btn ghost" id="newWork" type="button">新建草稿</button>
+        <button class="btn outline" id="generateWorkImage" type="button">生成当前作品图</button>
+        <button class="btn outline" id="refreshWorkAssets" type="button">刷新图片资产</button>
       </div>
       <div class="profile-line"><span class="tiny" id="workEditHint">当前：新建作品</span></div>
+      <div class="asset-list" id="workAssetList"><div class="soft-note">选择作品后显示图片资产。</div></div>
       <div class="work-list" id="workList"></div>
     </section>
 
@@ -314,7 +321,7 @@
         <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
       </div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/public/works/:code /docs /pricing</div>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -400,7 +407,7 @@
     type: { name: "词" },
     content: ["闲梦远，南国正芳春。", "船上管弦江面绿，满城飞絮滚轻尘。", "忙杀看花人。"]
   };
-  var state = { poems: [], activeScenario: "山水文旅", current: sample };
+  var state = { poems: [], activeScenario: "山水文旅", current: sample, workAssets: [] };
   var poetryKeyStorage = "poetry_api_key";
   var imageKeyStorage = "poetry_image_api_key";
   function $(id) { return document.getElementById(id); }
@@ -628,6 +635,8 @@
   }
   function clearWorkForm() {
     state.selectedWork = null;
+    state.workAssets = [];
+    renderWorkAssets([]);
     $("workTitle").value = "";
     $("workType").value = "poem";
     $("workContent").value = "";
@@ -650,6 +659,8 @@
     $("workOriginal").checked = !!work.original_commitment;
     $("workLicense").checked = !!work.license_accepted;
     $("workEditHint").textContent = "\u5f53\u524d\uff1a\u7f16\u8f91 #" + work.id + " \u00b7 " + (work.status || "draft");
+    renderWorkAsPoem(work);
+    loadWorkAssets(work.id, false);
     renderWorks(state.works || []);
   }
   function workPayload() {
@@ -720,7 +731,7 @@
     box.innerHTML = works.map(function (w) {
       var active = state.selectedWork && String(state.selectedWork.id) === String(w.id);
       var publicLink = w.work_code ? ('<a class="tiny" data-action="open" data-id="' + w.id + '" href="' + apiURL('/api/v1/public/works/' + encodeURIComponent(w.work_code)) + '" target="_blank" rel="noopener">\u516c\u5f00 JSON</a>') : '';
-      return '<div class="work-item ' + (active ? 'active' : '') + '" data-id="' + w.id + '"><b>' + escapeHTML(w.title || "\u672a\u547d\u540d\u4f5c\u54c1") + '</b><span class="tiny">' + escapeHTML(w.status || "draft") + ' \u00b7 v' + escapeHTML(w.version || 1) + ' \u00b7 ' + escapeHTML(w.work_code || "\u672a\u53d1\u5e03") + '</span><span class="tiny"><button class="link-btn" data-action="edit" data-id="' + w.id + '" type="button">\u7f16\u8f91</button> <button class="link-btn" data-action="report" data-id="' + w.id + '" type="button">\u67e5\u91cd\u62a5\u544a</button> ' + publicLink + '</span></div>';
+      return '<div class="work-item ' + (active ? 'active' : '') + '" data-id="' + w.id + '"><b>' + escapeHTML(w.title || "\u672a\u547d\u540d\u4f5c\u54c1") + '</b><span class="tiny">' + escapeHTML(w.status || "draft") + ' \u00b7 v' + escapeHTML(w.version || 1) + ' \u00b7 ' + escapeHTML(w.work_code || "\u672a\u53d1\u5e03") + '</span><span class="tiny"><button class="link-btn" data-action="edit" data-id="' + w.id + '" type="button">\u7f16\u8f91</button> <button class="link-btn" data-action="work-image" data-id="' + w.id + '" type="button">生图</button> <button class="link-btn" data-action="assets" data-id="' + w.id + '" type="button">图片</button> <button class="link-btn" data-action="report" data-id="' + w.id + '" type="button">\u67e5\u91cd\u62a5\u544a</button> ' + publicLink + '</span></div>';
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll("[data-action]"), function (el) {
       el.onclick = function (ev) {
@@ -729,11 +740,64 @@
         var action = el.dataset.action;
         var work = state.works.find(function (w) { return String(w.id) === String(id); });
         if (action === "edit") fillWorkForm(work);
+        if (action === "work-image") { fillWorkForm(work); generateImage(); }
+        if (action === "assets") { fillWorkForm(work); loadWorkAssets(id, true); }
         if (action === "report") showWorkReport(id);
         if (action === "open" && el.href) window.open(el.href, "_blank", "noopener");
       };
     });
   }
+  function renderWorkAsPoem(work) {
+    if (!work) return;
+    renderPoem({
+      title: work.title || "未命名作品",
+      author: { name: (state.account && state.account.display_name) || "我" },
+      dynasty: { name: "今" },
+      type: { name: work.work_type || "原创" },
+      content: normalizeLines(work.content || "")
+    });
+  }
+  function assetImageSrc(asset) {
+    if (!asset) return "";
+    var src = asset.url || (asset.b64_json ? ("data:" + (asset.mime_type || "image/png") + ";base64," + asset.b64_json) : "");
+    if (src && src.charAt(0) === "/") src = apiURL(src);
+    return src;
+  }
+  async function loadWorkAssets(id, showToast) {
+    if (!id || !apiKey()) return;
+    try {
+      var json = await fetchJSON("/api/v1/works/" + id + "/media-assets?asset_type=image&limit=12", { headers: { "X-API-Key": apiKey() } });
+      var data = json.data || json;
+      state.workAssets = data.items || [];
+      renderWorkAssets(state.workAssets);
+      if (state.workAssets.length && !state.imageSrc) renderGeneratedImage(assetImageSrc(state.workAssets[0]));
+      if (showToast) toast("已刷新图片资产 " + state.workAssets.length + " 张");
+    } catch (e) {
+      renderWorkAssets([]);
+      if (showToast) toast(e.message || "图片资产加载失败");
+    }
+  }
+  function renderWorkAssets(assets) {
+    var box = $("workAssetList");
+    if (!box) return;
+    assets = assets || [];
+    if (!assets.length) {
+      box.innerHTML = '<div class="soft-note">当前作品还没有图片资产，先点击生成当前作品图。</div>';
+      return;
+    }
+    box.innerHTML = assets.map(function (asset, i) {
+      var src = assetImageSrc(asset);
+      return '<button class="asset-thumb" data-i="' + i + '" type="button"><img src="' + escapeHTML(src) + '" alt="意境图"><span>' + escapeHTML((asset.size || "image") + " · " + (asset.credit_cost || 0) + "分") + '</span></button>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll(".asset-thumb"), function (btn) {
+      btn.onclick = function () {
+        var asset = assets[Number(btn.dataset.i)];
+        var src = assetImageSrc(asset);
+        if (src) renderGeneratedImage(src);
+      };
+    });
+  }
+
   async function showWorkReport(id) {
     try {
       var json = await fetchJSON("/api/v1/works/" + id + "/plagiarism-report", { headers: { "X-API-Key": apiKey() } });
@@ -976,24 +1040,30 @@
     var key = requireKey();
     var imageKey = requireImageKey();
     var prompt = buildPrompt();
-    var imgKey = imageAPIKey();
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
     var btn = $("promptBtn");
     var oldText = btn.textContent;
     btn.disabled = true;
     btn.textContent = "生成中...";
-    previewMessage("正在生成图片", "已提交到服务器，生成完成后会直接显示在这里。", "loading");
+    previewMessage("正在生成图片", selected ? "已按当前作品提交生成，完成后会保存到作品资产。" : "已提交到服务器，生成完成后会显示在这里。", "loading");
     try {
-      var json = await fetchJSON("/api/v1/images/generate", {
+      var url = selected ? ("/api/v1/works/" + selected.id + "/images/generate") : "/api/v1/images/generate";
+      var body = selected
+        ? { style: $("style").value || "古风水墨", size: imageSize(), prompt: prompt, image_api_key: imageKey }
+        : { prompt: prompt, size: imageSize(), image_api_key: imageKey };
+      var json = await fetchJSON(url, {
         method: "POST",
-        headers: { "X-API-Key": key, "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt, size: imageSize(), image_api_key: imageKey })
+        headers: { "X-API-Key": key, "X-Image-API-Key": imageKey, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
       });
       var data = json.data || json;
-      var src = data.image_url || (data.b64_json ? ("data:" + (data.mime_type || "image/png") + ";base64," + data.b64_json) : "");
+      var src = data.image_url || assetImageSrc(data.asset) || (data.b64_json ? ("data:" + (data.mime_type || "image/png") + ";base64," + data.b64_json) : "");
       if (!src) throw new Error("没有返回图片");
       renderGeneratedImage(src);
       if (data.revised_prompt) $("promptOut").value = data.revised_prompt;
-      toast("图片已生成并显示在右侧");
+      if (selected) await loadWorkAssets(selected.id, false);
+      var balance = data.credits && data.credits.balance;
+      toast(selected ? ("作品图片已生成" + (balance == null ? "" : "，剩余积分 " + balance)) : "图片已生成并显示在右侧");
       refreshStatus();
     } catch (e) {
       var msg = e.message || "图片生成失败";
@@ -1005,6 +1075,7 @@
       btn.textContent = oldText;
     }
   }
+
   async function bindQanlo() {
     var key = requireKey();
     try {
@@ -1071,6 +1142,8 @@
   $("openProfile").onclick = openProfilePage;
   $("saveWork").onclick = saveWork;
   $("newWork").onclick = clearWorkForm;
+  $("generateWorkImage").onclick = function () { if (!state.selectedWork) { toast("请先选择一个作品"); return; } generateImage(); };
+  $("refreshWorkAssets").onclick = function () { if (!state.selectedWork) { toast("请先选择作品"); return; } loadWorkAssets(state.selectedWork.id, true); };
   $("workStatusFilter").onchange = function () { loadWorks(true); };
   $("query").addEventListener("input", function () {
     var before = state.activeScenario;

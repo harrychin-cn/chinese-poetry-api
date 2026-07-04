@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,7 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 
 	router.GET("/console", handler.ConsolePage)
 	router.GET("/console-placeholder-bg.png", handler.ConsolePlaceholderImage)
+	router.StaticFS(handler.MediaPublicBasePath(cfg.Image), http.Dir(handler.MediaStorageDir(cfg.Image)))
 	router.GET("/docs", handler.DocsPage)
 	router.GET("/pricing", handler.PricingPage)
 	router.GET("/u/:handle", handler.UserPage)

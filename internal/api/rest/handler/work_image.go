@@ -194,12 +194,13 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 				return
 			}
 			respondOK(c, gin.H{
-				"cached":    true,
-				"image_url": mediaAssetImageURL(*cachedAsset),
-				"b64_json":  cachedAsset.B64JSON,
-				"prompt":    formatImagePrompt(*promptRecord),
-				"job":       formatImageGenerationJob(*completedJob),
-				"asset":     formatMediaAsset(*cachedAsset),
+				"cached":      true,
+				"image_url":   mediaAssetImageURL(*cachedAsset),
+				"b64_json":    cachedAsset.B64JSON,
+				"credit_cost": 0,
+				"prompt":      formatImagePrompt(*promptRecord),
+				"job":         formatImageGenerationJob(*completedJob),
+				"asset":       formatMediaAsset(*cachedAsset),
 			})
 			return
 		}
@@ -226,10 +227,13 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 	}
 
 	if req.DryRun {
+		wallet, _ := h.repo.GetOrCreateCreditWallet(apiKey.ID, imageInitialCredits(h.cfg))
 		respondOK(c, gin.H{
-			"dry_run": true,
-			"prompt":  formatImagePrompt(*promptRecord),
-			"job":     formatImageGenerationJob(*job),
+			"dry_run":     true,
+			"credit_cost": 0,
+			"credits":     formatCreditWallet(wallet),
+			"prompt":      formatImagePrompt(*promptRecord),
+			"job":         formatImageGenerationJob(*job),
 		})
 		return
 	}
@@ -272,6 +276,27 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 				"job":    formatNullableImageGenerationJob(failedJob, *job),
 			},
 		})
+		return
+	}
+
+	creditCost := imageCreditCost(h.cfg)
+	wallet, err := h.repo.EnsureCreditsAvailable(apiKey.ID, creditCost, imageInitialCredits(h.cfg))
+	if err != nil {
+		failedJob, _ := h.repo.FailImageGenerationJob(job.ID, "insufficient image credits")
+		if errors.Is(err, database.ErrInsufficientCredits) {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error":             "insufficient image credits",
+				"recharge_endpoint": "/api/v1/billing/qanlo/recharge-session",
+				"data": gin.H{
+					"credit_cost": creditCost,
+					"credits":     formatCreditWallet(wallet),
+					"prompt":      formatImagePrompt(*promptRecord),
+					"job":         formatNullableImageGenerationJob(failedJob, *job),
+				},
+			})
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "failed to read image credits")
 		return
 	}
 
@@ -365,13 +390,29 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 		return
 	}
 
-	asset, err := h.repo.CreateMediaAsset(database.CreateMediaAssetParams{
+	assetURL := imageURL
+	assetB64 := b64
+	var stored *storedImageAsset
+	if b64 != "" {
+		stored, err = storeWorkImageB64Asset(h.cfg, apiKey.ID, work.ID, finalFormat, b64)
+		if err != nil {
+			_, _ = h.repo.FailImageGenerationJob(job.ID, "failed to store image asset")
+			respondError(c, http.StatusInternalServerError, "failed to store image asset")
+			return
+		}
+		if stored != nil {
+			assetURL = stored.URL
+			assetB64 = ""
+		}
+	}
+
+	assetParams := database.CreateMediaAssetParams{
 		WorkID:        work.ID,
 		APIKeyID:      apiKey.ID,
 		AssetType:     database.MediaAssetTypeImage,
 		Source:        database.MediaAssetSourceGenerated,
-		URL:           imageURL,
-		B64JSON:       b64,
+		URL:           assetURL,
+		B64JSON:       assetB64,
 		MimeType:      "image/" + finalFormat,
 		Model:         model,
 		Size:          size,
@@ -379,8 +420,17 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 		OutputFormat:  finalFormat,
 		Prompt:        prompt,
 		RevisedPrompt: item.RevisedPrompt,
+		CreditCost:    creditCost,
 		Visibility:    work.Visibility,
-	})
+	}
+	if stored != nil {
+		assetParams.StorageProvider = stored.StorageProvider
+		assetParams.StorageKey = stored.StorageKey
+		assetParams.FilePath = stored.FilePath
+		assetParams.ByteSize = stored.ByteSize
+		assetParams.ChecksumSHA256 = stored.ChecksumSHA256
+	}
+	asset, err := h.repo.CreateMediaAsset(assetParams)
 	if err != nil {
 		_, _ = h.repo.FailImageGenerationJob(job.ID, "failed to save media asset")
 		respondError(c, http.StatusInternalServerError, "failed to save media asset")
@@ -401,6 +451,32 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 		return
 	}
 
+	workID := work.ID
+	assetIDForCredits := asset.ID
+	jobIDForCredits := job.ID
+	wallet, _, err = h.repo.SpendCredits(database.SpendCreditsParams{
+		APIKeyID:       apiKey.ID,
+		WorkID:         &workID,
+		MediaAssetID:   &assetIDForCredits,
+		JobID:          &jobIDForCredits,
+		Amount:         creditCost,
+		Reason:         "work_image_generate",
+		IdempotencyKey: "image_job:" + formatID(job.ID),
+		InitialBalance: imageInitialCredits(h.cfg),
+	})
+	if err != nil {
+		_, _ = h.repo.FailImageGenerationJob(job.ID, "failed to spend image credits")
+		if errors.Is(err, database.ErrInsufficientCredits) {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error":             "insufficient image credits",
+				"recharge_endpoint": "/api/v1/billing/qanlo/recharge-session",
+			})
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "failed to spend image credits")
+		return
+	}
+
 	assetID := asset.ID
 	job, err = h.repo.CompleteImageGenerationJob(job.ID, &assetID)
 	if err != nil {
@@ -412,14 +488,20 @@ func (h *WorkImageHandler) Generate(c *gin.Context) {
 	if apiKey.DailyLimit > 0 {
 		c.Header("X-API-Key-Daily-Limit", strconv.Itoa(apiKey.DailyLimit))
 	}
+	if wallet != nil {
+		c.Header("X-API-Key-Credits-Balance", strconv.Itoa(wallet.Balance))
+	}
+	c.Header("X-Image-Credit-Cost", strconv.Itoa(creditCost))
 	c.Set("api_key_billable", true)
 
 	respondOK(c, gin.H{
-		"image_url": imageURL,
-		"b64_json":  b64,
-		"prompt":    formatImagePrompt(*promptRecord),
-		"job":       formatImageGenerationJob(*job),
-		"asset":     formatMediaAsset(*asset),
+		"image_url":   assetURL,
+		"b64_json":    b64,
+		"credit_cost": creditCost,
+		"credits":     formatCreditWallet(wallet),
+		"prompt":      formatImagePrompt(*promptRecord),
+		"job":         formatImageGenerationJob(*job),
+		"asset":       formatMediaAsset(*asset),
 	})
 }
 
@@ -503,24 +585,64 @@ func formatNullableImageGenerationJob(value *database.ImageGenerationJob, fallba
 	return formatImageGenerationJob(*value)
 }
 
+func imageCreditCost(cfg config.ImageConfig) int {
+	if cfg.CreditCost < 0 {
+		return 0
+	}
+	if cfg.CreditCost == 0 {
+		return 1
+	}
+	return cfg.CreditCost
+}
+
+func imageInitialCredits(cfg config.ImageConfig) int {
+	if cfg.InitialCredits < 0 {
+		return 0
+	}
+	if cfg.InitialCredits == 0 {
+		return 20
+	}
+	return cfg.InitialCredits
+}
+
+func formatCreditWallet(wallet *database.CreditWallet) map[string]any {
+	if wallet == nil {
+		return map[string]any{"balance": 0}
+	}
+	return map[string]any{
+		"id":            wallet.ID,
+		"api_key_id":    wallet.APIKeyID,
+		"balance":       wallet.Balance,
+		"total_granted": wallet.TotalGranted,
+		"total_spent":   wallet.TotalSpent,
+		"updated_at":    wallet.UpdatedAt,
+	}
+}
+
 func formatMediaAsset(asset database.MediaAsset) map[string]any {
 	return map[string]any{
-		"id":             asset.ID,
-		"work_id":        asset.WorkID,
-		"api_key_id":     asset.APIKeyID,
-		"asset_type":     asset.AssetType,
-		"source":         asset.Source,
-		"url":            asset.URL,
-		"b64_json":       asset.B64JSON,
-		"mime_type":      asset.MimeType,
-		"model":          asset.Model,
-		"size":           asset.Size,
-		"quality":        asset.Quality,
-		"output_format":  asset.OutputFormat,
-		"prompt":         asset.Prompt,
-		"revised_prompt": asset.RevisedPrompt,
-		"visibility":     asset.Visibility,
-		"created_at":     asset.CreatedAt,
+		"id":               asset.ID,
+		"work_id":          asset.WorkID,
+		"api_key_id":       asset.APIKeyID,
+		"asset_type":       asset.AssetType,
+		"source":           asset.Source,
+		"url":              asset.URL,
+		"b64_json":         asset.B64JSON,
+		"mime_type":        asset.MimeType,
+		"model":            asset.Model,
+		"size":             asset.Size,
+		"quality":          asset.Quality,
+		"output_format":    asset.OutputFormat,
+		"prompt":           asset.Prompt,
+		"revised_prompt":   asset.RevisedPrompt,
+		"storage_provider": asset.StorageProvider,
+		"storage_key":      asset.StorageKey,
+		"file_path":        asset.FilePath,
+		"byte_size":        asset.ByteSize,
+		"checksum_sha256":  asset.ChecksumSHA256,
+		"credit_cost":      asset.CreditCost,
+		"visibility":       asset.Visibility,
+		"created_at":       asset.CreatedAt,
 	}
 }
 

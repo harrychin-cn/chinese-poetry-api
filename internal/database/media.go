@@ -21,22 +21,28 @@ const (
 
 // MediaAsset stores generated or uploaded media linked to an original work.
 type MediaAsset struct {
-	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	WorkID        int64     `gorm:"column:work_id;not null" json:"work_id"`
-	APIKeyID      int64     `gorm:"column:api_key_id;not null" json:"api_key_id"`
-	AssetType     string    `gorm:"column:asset_type;not null" json:"asset_type"`
-	Source        string    `gorm:"column:source;not null" json:"source"`
-	URL           string    `gorm:"column:url" json:"url,omitempty"`
-	B64JSON       string    `gorm:"column:b64_json" json:"b64_json,omitempty"`
-	MimeType      string    `gorm:"column:mime_type" json:"mime_type,omitempty"`
-	Model         string    `gorm:"column:model" json:"model,omitempty"`
-	Size          string    `gorm:"column:size" json:"size,omitempty"`
-	Quality       string    `gorm:"column:quality" json:"quality,omitempty"`
-	OutputFormat  string    `gorm:"column:output_format" json:"output_format,omitempty"`
-	Prompt        string    `gorm:"column:prompt" json:"prompt,omitempty"`
-	RevisedPrompt string    `gorm:"column:revised_prompt" json:"revised_prompt,omitempty"`
-	Visibility    string    `gorm:"column:visibility;not null" json:"visibility"`
-	CreatedAt     time.Time `gorm:"column:created_at" json:"created_at"`
+	ID              int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	WorkID          int64     `gorm:"column:work_id;not null" json:"work_id"`
+	APIKeyID        int64     `gorm:"column:api_key_id;not null" json:"api_key_id"`
+	AssetType       string    `gorm:"column:asset_type;not null" json:"asset_type"`
+	Source          string    `gorm:"column:source;not null" json:"source"`
+	URL             string    `gorm:"column:url" json:"url,omitempty"`
+	B64JSON         string    `gorm:"column:b64_json" json:"b64_json,omitempty"`
+	MimeType        string    `gorm:"column:mime_type" json:"mime_type,omitempty"`
+	Model           string    `gorm:"column:model" json:"model,omitempty"`
+	Size            string    `gorm:"column:size" json:"size,omitempty"`
+	Quality         string    `gorm:"column:quality" json:"quality,omitempty"`
+	OutputFormat    string    `gorm:"column:output_format" json:"output_format,omitempty"`
+	Prompt          string    `gorm:"column:prompt" json:"prompt,omitempty"`
+	RevisedPrompt   string    `gorm:"column:revised_prompt" json:"revised_prompt,omitempty"`
+	StorageProvider string    `gorm:"column:storage_provider" json:"storage_provider,omitempty"`
+	StorageKey      string    `gorm:"column:storage_key" json:"storage_key,omitempty"`
+	FilePath        string    `gorm:"column:file_path" json:"file_path,omitempty"`
+	ByteSize        int64     `gorm:"column:byte_size;not null" json:"byte_size"`
+	ChecksumSHA256  string    `gorm:"column:checksum_sha256" json:"checksum_sha256,omitempty"`
+	CreditCost      int       `gorm:"column:credit_cost;not null" json:"credit_cost"`
+	Visibility      string    `gorm:"column:visibility;not null" json:"visibility"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
 }
 
 func (MediaAsset) TableName() string { return "media_assets" }
@@ -97,20 +103,26 @@ type CreateImageGenerationJobParams struct {
 }
 
 type CreateMediaAssetParams struct {
-	WorkID        int64
-	APIKeyID      int64
-	AssetType     string
-	Source        string
-	URL           string
-	B64JSON       string
-	MimeType      string
-	Model         string
-	Size          string
-	Quality       string
-	OutputFormat  string
-	Prompt        string
-	RevisedPrompt string
-	Visibility    string
+	WorkID          int64
+	APIKeyID        int64
+	AssetType       string
+	Source          string
+	URL             string
+	B64JSON         string
+	MimeType        string
+	Model           string
+	Size            string
+	Quality         string
+	OutputFormat    string
+	Prompt          string
+	RevisedPrompt   string
+	StorageProvider string
+	StorageKey      string
+	FilePath        string
+	ByteSize        int64
+	ChecksumSHA256  string
+	CreditCost      int
+	Visibility      string
 }
 
 type FindCachedWorkImageAssetParams struct {
@@ -190,20 +202,26 @@ func (r *Repository) CreateMediaAsset(params CreateMediaAssetParams) (*MediaAsse
 		visibility = WorkVisibilityPrivate
 	}
 	asset := MediaAsset{
-		WorkID:        params.WorkID,
-		APIKeyID:      params.APIKeyID,
-		AssetType:     limitString(assetType, 40),
-		Source:        limitString(source, 40),
-		URL:           strings.TrimSpace(params.URL),
-		B64JSON:       strings.TrimSpace(params.B64JSON),
-		MimeType:      limitString(strings.TrimSpace(params.MimeType), 80),
-		Model:         limitString(strings.TrimSpace(params.Model), 80),
-		Size:          limitString(strings.TrimSpace(params.Size), 40),
-		Quality:       limitString(strings.TrimSpace(params.Quality), 40),
-		OutputFormat:  limitString(strings.TrimSpace(params.OutputFormat), 40),
-		Prompt:        limitString(strings.TrimSpace(params.Prompt), 3000),
-		RevisedPrompt: limitString(strings.TrimSpace(params.RevisedPrompt), 3000),
-		Visibility:    visibility,
+		WorkID:          params.WorkID,
+		APIKeyID:        params.APIKeyID,
+		AssetType:       limitString(assetType, 40),
+		Source:          limitString(source, 40),
+		URL:             strings.TrimSpace(params.URL),
+		B64JSON:         strings.TrimSpace(params.B64JSON),
+		MimeType:        limitString(strings.TrimSpace(params.MimeType), 80),
+		Model:           limitString(strings.TrimSpace(params.Model), 80),
+		Size:            limitString(strings.TrimSpace(params.Size), 40),
+		Quality:         limitString(strings.TrimSpace(params.Quality), 40),
+		OutputFormat:    limitString(strings.TrimSpace(params.OutputFormat), 40),
+		Prompt:          limitString(strings.TrimSpace(params.Prompt), 3000),
+		RevisedPrompt:   limitString(strings.TrimSpace(params.RevisedPrompt), 3000),
+		StorageProvider: limitString(strings.TrimSpace(params.StorageProvider), 40),
+		StorageKey:      limitString(strings.TrimSpace(params.StorageKey), 500),
+		FilePath:        limitString(strings.TrimSpace(params.FilePath), 1000),
+		ByteSize:        params.ByteSize,
+		ChecksumSHA256:  limitString(strings.TrimSpace(params.ChecksumSHA256), 80),
+		CreditCost:      max(params.CreditCost, 0),
+		Visibility:      visibility,
 	}
 	if asset.URL == "" && asset.B64JSON == "" {
 		return nil, fmt.Errorf("%w: media asset url or b64_json is required", ErrInvalidQueryParam)

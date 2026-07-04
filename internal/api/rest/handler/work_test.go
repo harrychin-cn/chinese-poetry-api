@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -129,6 +130,12 @@ func TestWorkHandlerRejectsPublishWithoutLicense(t *testing.T) {
 func setupWorkImageTestRouter(t *testing.T, cfg config.ImageConfig) (*gin.Engine, *database.Repository, string, *database.OriginalWork) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
+	if strings.TrimSpace(cfg.StorageDir) == "" {
+		cfg.StorageDir = t.TempDir()
+	}
+	if strings.TrimSpace(cfg.PublicBasePath) == "" {
+		cfg.PublicBasePath = "/media-assets"
+	}
 
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -236,8 +243,15 @@ func TestWorkImageGenerateStoresAssetAndJob(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Contains(t, w.Body.String(), "data:image/png;base64,aGVsbG8=")
 	assert.Contains(t, w.Body.String(), "succeeded")
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	data := resp["data"].(map[string]any)
+	assert.Equal(t, "aGVsbG8=", data["b64_json"])
+	assert.Equal(t, float64(1), data["credit_cost"])
+	assert.Contains(t, data["image_url"].(string), "/media-assets/images/")
+	credits := data["credits"].(map[string]any)
+	assert.Equal(t, float64(19), credits["balance"])
 
 	usage, err := repo.GetAPIKeyUsageCount(1, time.Now().UTC().Format("2006-01-02"))
 	require.NoError(t, err)
@@ -247,6 +261,16 @@ func TestWorkImageGenerateStoresAssetAndJob(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, assets, 1)
 	assert.Equal(t, "image/png", assets[0].MimeType)
+	assert.True(t, strings.HasPrefix(assets[0].URL, "/media-assets/"))
+	assert.Empty(t, assets[0].B64JSON)
+	assert.Equal(t, "local", assets[0].StorageProvider)
+	assert.NotEmpty(t, assets[0].StorageKey)
+	assert.NotEmpty(t, assets[0].FilePath)
+	assert.Equal(t, int64(5), assets[0].ByteSize)
+	assert.NotEmpty(t, assets[0].ChecksumSHA256)
+	assert.Equal(t, 1, assets[0].CreditCost)
+	_, err = os.Stat(assets[0].FilePath)
+	require.NoError(t, err)
 
 	jobs, err := repo.ListWorkImageJobs(1, work.ID, 10)
 	require.NoError(t, err)
@@ -291,11 +315,15 @@ func TestWorkImageGenerateUsesCachedAssetWithoutQuota(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	require.Equal(t, 1, upstreamCalls, "same work image request should reuse cached asset")
 	assert.Contains(t, w.Body.String(), `"cached":true`)
-	assert.Contains(t, w.Body.String(), "data:image/png;base64,aGVsbG8=")
+	assert.Contains(t, w.Body.String(), `"/media-assets/images/`)
+	assert.Contains(t, w.Body.String(), `"b64_json":""`)
 
 	usage, err := repo.GetAPIKeyUsageCount(1, time.Now().UTC().Format("2006-01-02"))
 	require.NoError(t, err)
 	assert.Equal(t, 1, usage, "cache hit must not consume another quota unit")
+	wallet, err := repo.GetCreditWalletByAPIKeyID(1)
+	require.NoError(t, err)
+	assert.Equal(t, 19, wallet.Balance, "cache hit must not spend another credit")
 
 	jobs, err := repo.ListWorkImageJobs(1, work.ID, 10)
 	require.NoError(t, err)
@@ -304,4 +332,46 @@ func TestWorkImageGenerateUsesCachedAssetWithoutQuota(t *testing.T) {
 	require.NotNil(t, jobs[0].MediaAssetID)
 	require.NotNil(t, jobs[1].MediaAssetID)
 	assert.Equal(t, *jobs[1].MediaAssetID, *jobs[0].MediaAssetID)
+}
+
+func TestWorkImageGenerateRejectsInsufficientCreditsBeforeUpstream(t *testing.T) {
+	upstreamCalls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aGVsbG8="}]}`))
+	}))
+	defer upstream.Close()
+
+	router, repo, rawKey, work := setupWorkImageTestRouter(t, config.ImageConfig{
+		APIKey:         "test-image-key",
+		BaseURL:        upstream.URL + "/openai/v1",
+		Model:          "gpt-image-2",
+		Quality:        "high",
+		OutputFormat:   "png",
+		TimeoutSeconds: 5,
+		CreditCost:     3,
+		InitialCredits: 2,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/works/"+formatTestID(work.ID)+"/images/generate", strings.NewReader(`{
+		"style":"鍙ら姘村ⅷ",
+		"size":"1024x1024",
+		"prompt":"棰樿瘲鑷劧铻嶅叆绐楄竟鐣欑櫧"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", rawKey)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusPaymentRequired, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "insufficient image credits")
+	assert.Equal(t, 0, upstreamCalls, "credit check should happen before upstream image call")
+
+	usage, err := repo.GetAPIKeyUsageCount(1, time.Now().UTC().Format("2006-01-02"))
+	require.NoError(t, err)
+	assert.Equal(t, 0, usage)
+	wallet, err := repo.GetCreditWalletByAPIKeyID(1)
+	require.NoError(t, err)
+	assert.Equal(t, 2, wallet.Balance)
 }

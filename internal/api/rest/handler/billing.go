@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/palemoky/chinese-poetry-api/internal/config"
 	"github.com/palemoky/chinese-poetry-api/internal/database"
@@ -165,6 +166,11 @@ func (h *BillingHandler) BillingStatus(c *gin.Context) {
 		respondError(c, http.StatusInternalServerError, "failed to read qanlo binding")
 		return
 	}
+	wallet, err := h.repo.GetCreditWalletByAPIKeyID(apiKey.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		respondError(c, http.StatusInternalServerError, "failed to read credit wallet")
+		return
+	}
 
 	respondOK(c, gin.H{
 		"api_key": gin.H{
@@ -177,7 +183,8 @@ func (h *BillingHandler) BillingStatus(c *gin.Context) {
 			"key_prefix":   apiKey.KeyPrefix,
 			"quota_policy": "daily_limit=0 means unlimited",
 		},
-		"qanlo": h.formatQanloBinding(binding),
+		"credits": formatCreditWallet(wallet),
+		"qanlo":   h.formatQanloBinding(binding),
 	})
 }
 
