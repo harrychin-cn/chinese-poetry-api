@@ -86,6 +86,35 @@ func TestAPIKeyAuthNoUsage(t *testing.T) {
 	assert.Equal(t, 1, usage)
 }
 
+func TestAPIKeyAuthRejectsQueryParameterKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	db := database.NewDBFromGorm(gormDB)
+	require.NoError(t, db.Migrate())
+	repo := database.NewRepository(db)
+
+	_, rawKey, err := repo.CreateAPIKey(database.CreateAPIKeyParams{
+		Name:       "query customer",
+		DailyLimit: 5,
+	})
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.GET("/query", APIKeyAuth(repo), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/query?api_key="+rawKey, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "api key required")
+}
+
 func TestAPIKeyAuthWithRechargeQuotaExceeded(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

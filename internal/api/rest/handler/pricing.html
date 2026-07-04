@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 诗词知识库 API 价格套餐</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f6efe3;color:#17120d}.wrap{max-width:1080px;margin:0 auto;padding:40px 22px}.hero{display:flex;justify-content:space-between;gap:20px;align-items:center}.sub{color:#756a5b;line-height:1.75}.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0}.plan{background:#fffaf0;border:1px solid #e3d1b9;border-radius:26px;padding:22px;box-shadow:0 18px 55px rgba(93,56,20,.1)}.price{font-size:34px;font-weight:900;margin:10px 0}.btn{display:inline-block;background:#a8322a;color:white;padding:12px 16px;border-radius:999px;text-decoration:none;font-weight:900;margin-right:8px}.secondary{background:#eadbc6;color:#17120d}@media(max-width:860px){.hero{display:block}.plans{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <h1>AI 诗词知识库 API 价格套餐</h1>
+      <p class="sub">首版验证价：不自建支付系统，充值和扣费走 QanloAPI；本项目负责诗词知识库、API Key、每日限额、用量统计和运营后台。公开控制台不会自动创建免费 Key。</p>
+    </div>
+    <div><a class="btn" href="/console">进入控制台</a><a class="btn secondary" href="/docs">查看文档</a></div>
+  </section>
+  <section class="plans">
+    <div class="plan"><h2>体验版（需开通 Key）</h2><div class="price">开通后可用</div><p>适合个人开发者、演示客户和早期试用，需先由管理员或 Qanlo 链路发放 Key。</p><ul><li>每日 100-1000 次测试额度</li><li>诗词检索与知识库召回</li><li>客户反馈入口</li></ul></div>
+    <div class="plan"><h2>开发者</h2><div class="price">按量</div><p>适合小程序、网站、文旅内容工具。</p><ul><li>按 QanloAPI 充值链路验证</li><li>可配置每日限额</li><li>支持 /api/v1/billing/qanlo/recharge-session</li></ul></div>
+    <div class="plan"><h2>企业版</h2><div class="price">定制</div><p>适合学校、文旅、私有知识库项目。</p><ul><li>私有部署</li><li>定制标签与评测集</li><li>可选 gpt-image-2 生图接口</li></ul></div>
+  </section>
+  <section class="plan"><h2>计费说明</h2><p>可计费接口包括 <code>/api/v1/poems/query</code>、全文搜索、<code>/api/v1/knowledge/recall</code> 和批量召回。<code>/api/v1/usage/daily</code> 用于查看用量，<code>/api/v1/feedback</code> 用于客户反馈；绑定、充值、状态刷新和反馈默认不消耗每日查询额度。</p></section>
+</main>
+</body>
+</html>

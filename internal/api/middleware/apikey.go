@@ -134,7 +134,7 @@ func extractAPIKey(c *gin.Context) string {
 	if key := bearerToken(c.GetHeader("Authorization")); key != "" {
 		return key
 	}
-	return strings.TrimSpace(c.Query("api_key"))
+	return ""
 }
 
 func bearerToken(value string) string {

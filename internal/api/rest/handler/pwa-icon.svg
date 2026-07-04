@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="诗词画曲赋">
+  <rect width="512" height="512" rx="120" fill="#a8322a"/>
+  <path d="M110 104h292v304H110z" fill="#fffaf0" opacity=".16"/>
+  <text x="256" y="326" text-anchor="middle" font-size="188" font-weight="900" font-family="Noto Serif SC, Songti SC, serif" fill="#fffaf0">诗</text>
+  <path d="M132 392c80-42 168-42 248 0" fill="none" stroke="#c49758" stroke-width="18" stroke-linecap="round"/>
+</svg>

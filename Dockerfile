@@ -47,6 +47,7 @@ COPY --link --from=builder --chmod=755 /build/enrichment .
 COPY --link --from=builder --chmod=755 /build/backup .
 COPY --link --chmod=644 config.yaml .
 COPY --link --chmod=755 scripts/startup.sh .
+RUN sed -i 's/\r$//' startup.sh
 
 # Environment variables
 ENV PORT=1279 \

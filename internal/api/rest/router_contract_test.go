@@ -119,36 +119,53 @@ func TestBuiltInCommercialPagesRenderCoreEntrypoints(t *testing.T) {
 	router := setupRouterContractTestRouter(t)
 
 	cases := []struct {
-		path     string
-		contains []string
+		path        string
+		contains    []string
+		notContains []string
 	}{
+		{
+			path: "/",
+			contains: []string{
+				"/console",
+				"/docs",
+				"/pricing",
+				"/manifest.json",
+				"service-worker.js",
+			},
+		},
+		{
+			path: "/home",
+			contains: []string{
+				"/console",
+				"/manifest.json",
+			},
+		},
 		{
 			path: "/console",
 			contains: []string{
+				"/",
 				"/docs",
 				"/pricing",
-				"POST /api/v1/keys",
-				"/api/v1/billing/status",
-				"/api/v1/knowledge/recall",
+				"#works",
+				"/manifest.json",
+				"/api/v1/poems/search",
 				"/api/v1/images/generate",
-				"/api/v1/feedback",
 				"/api/v1/works",
 				"/api/v1/works/reverse-create",
-				"/api/v1/works/:id/plagiarism-report",
+				"/api/v1/usage/daily",
+				"console-placeholder-bg.png",
+				"poetry_api_key",
+				"poetry_image_api_key",
+			},
+			notContains: []string{
+				"/api/v1/wallet",
 				"/api/v1/works/:id/audio/generate",
 				"/api/v1/works/:id/music/generate",
-				"/api/v1/wallet",
 				"/api/v1/works/:id/tip",
 				"/api/v1/works/:id/certificate",
-				"/api/v1/works/:id/certificate/anchor",
-				"/api/v1/public/works",
-				"/api/v1/public/rankings/works",
 				"/api/v1/partners/works/export",
-				"/library",
-				"/certificates/:code",
-				"console-placeholder-bg.png",
-				"画中题诗",
-				"不要像背景图上后贴图案",
+				"Issue Certificate",
+				"Open Certificate",
 			},
 		},
 		{
@@ -157,24 +174,20 @@ func TestBuiltInCommercialPagesRenderCoreEntrypoints(t *testing.T) {
 				"/console",
 				"/pricing",
 				"/openapi.yaml",
-				"POST /api/v1/keys",
-				"POST /api/v1/billing/qanlo/recharge-session",
-				"GET /api/v1/billing/status",
-				"GET /api/v1/wallet",
-				"POST /api/v1/wallet/top-up",
+				"GET /api/v1/poems/search",
+				"GET /api/v1/poems/query",
 				"GET /api/v1/knowledge/recall",
 				"POST /api/v1/images/generate",
+				"POST /api/v1/works/reverse-create",
+				"GET /api/v1/usage/daily",
+				"POST /api/v1/feedback",
+			},
+			notContains: []string{
 				"POST /api/v1/works/:id/audio/generate",
 				"POST /api/v1/works/:id/music/generate",
 				"POST /api/v1/works/:id/tip",
-				"GET /api/v1/works/:id/certificate",
-				"POST /api/v1/works/:id/certificate/anchor",
-				"GET /api/v1/public/works",
-				"GET /api/v1/public/rankings/works",
+				"GET /api/v1/wallet",
 				"GET /api/v1/partners/works/export",
-				"POST /api/v1/works/reverse-create",
-				"GET /api/v1/admin/enrichment/runs/:run_id/summary",
-				"GET /api/v1/admin/abuse/blocks",
 			},
 		},
 		{
@@ -201,6 +214,36 @@ func TestBuiltInCommercialPagesRenderCoreEntrypoints(t *testing.T) {
 			for _, expected := range tc.contains {
 				require.Contains(t, body, expected)
 			}
+			for _, unexpected := range tc.notContains {
+				require.NotContains(t, body, unexpected)
+			}
+		})
+	}
+}
+
+func TestPWAAssetsRender(t *testing.T) {
+	router := setupRouterContractTestRouter(t)
+
+	cases := []struct {
+		path        string
+		contentType string
+		contains    string
+	}{
+		{path: "/manifest.json", contentType: "application/manifest+json", contains: "start_url"},
+		{path: "/service-worker.js", contentType: "application/javascript", contains: "CACHE_NAME"},
+		{path: "/pwa-icon.svg", contentType: "image/svg+xml", contains: "<svg"},
+		{path: "/favicon.ico", contentType: "image/svg+xml", contains: "<svg"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Contains(t, w.Header().Get("Content-Type"), tc.contentType)
+			require.Contains(t, w.Body.String(), tc.contains)
 		})
 	}
 }

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#a8322a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="诗词画曲赋" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>诗词画曲赋 · AI 诗词知识库</title>
+  <style>
+    :root{--ink:#211814;--muted:#76695d;--paper:#fffaf0;--line:#dfcbb0;--red:#a8322a;--red2:#c64a3f;--gold:#c49758;--song:"Noto Serif SC","Source Han Serif SC","Songti SC",STSong,serif;--sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;--shadow:0 22px 70px rgba(83,48,18,.12)}*{box-sizing:border-box}body{margin:0;min-height:100vh;color:var(--ink);font-family:var(--sans);background:radial-gradient(circle at 15% 0,rgba(255,255,255,.82),transparent 30%),radial-gradient(circle at 85% 18%,rgba(196,151,88,.24),transparent 28%),linear-gradient(135deg,#fffaf0,#f6ead7 52%,#ead8bd)}a{text-decoration:none;color:inherit}h1,h2,p{margin:0}.wrap{max-width:1180px;margin:0 auto;padding:0 22px}.top{display:flex;justify-content:space-between;align-items:center;gap:18px;min-height:72px}.brand{display:flex;align-items:center;gap:12px}.logo{width:48px;height:48px;border-radius:18px;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;display:grid;place-items:center;font:900 25px var(--song);box-shadow:0 12px 28px rgba(168,50,42,.22)}.brand b{font:900 20px var(--song)}.nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nav a,.btn{min-height:44px;border:1px solid var(--line);border-radius:999px;background:rgba(255,250,242,.78);padding:10px 16px;font-weight:900;display:inline-flex;align-items:center;justify-content:center}.btn.primary,.nav a.active{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border-color:transparent}.hero{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(340px,.98fr);gap:28px;align-items:center;min-height:calc(100vh - 72px);padding:42px 0 58px}.copy h1{font:900 clamp(42px,7vw,82px)/1.02 var(--song);letter-spacing:.04em}.copy p{margin-top:22px;color:var(--muted);font-size:18px;line-height:1.8;max-width:620px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.showcase{border:1px solid var(--line);border-radius:34px;background:rgba(255,250,240,.78);box-shadow:var(--shadow);overflow:hidden}.painting{min-height:360px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.16)),url("/console-placeholder-bg.png") center/cover no-repeat;display:grid;place-items:center;padding:36px}.poem{width:min(100%,360px);background:rgba(255,253,247,.86);border:1px solid rgba(223,203,176,.88);border-radius:26px;padding:28px;box-shadow:0 22px 60px rgba(33,24,20,.12)}.poem h2{font:900 34px var(--song);margin-bottom:8px}.poem p{font:400 24px/2 var(--song);white-space:pre-line}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:16px}.card{border:1px solid #eadac5;border-radius:22px;background:rgba(255,253,247,.76);padding:18px}.card h2{font-size:20px}.card p{color:var(--muted);line-height:1.7;margin-top:8px}.foot{padding:28px 0 38px;color:var(--muted);text-align:center}@media(max-width:880px){.top{align-items:flex-start;flex-direction:column;padding-top:14px}.hero{grid-template-columns:1fr;min-height:auto}.cards{grid-template-columns:1fr}.copy h1{font-size:46px}.painting{min-height:300px}}@media(max-width:560px){.wrap{padding:0 14px}.nav{width:100%;overflow:auto;flex-wrap:nowrap;justify-content:flex-start;padding-bottom:4px}.nav a{min-width:max-content}.actions .btn{width:100%}.copy h1{font-size:40px}.copy p{font-size:16px}.poem p{font-size:21px}}
+  </style>
+</head>
+<body>
+  <header class="wrap top">
+    <a class="brand" href="/"><span class="logo">诗</span><span><b>诗词画曲赋</b><br><small>AI 诗词知识库</small></span></a>
+    <nav class="nav" aria-label="主导航"><a class="active" href="/">首页</a><a href="/console">控制台</a><a href="/library">作品库</a><a href="/docs">文档</a><a href="/pricing">价格</a></nav>
+  </header>
+  <main class="wrap hero">
+    <section class="copy">
+      <h1>AI 驱动的诗词知识库</h1>
+      <p>给喜欢诗词曲赋的人一个清爽入口：搜诗词、赏意境、沉淀自己的作品。基础搜索打开即用，需要生成图片或保存作品时再填写 Key。</p>
+      <div class="actions"><a class="btn primary" href="/console">进入控制台</a><a class="btn" href="/docs">查看 API 文档</a></div>
+    </section>
+    <section class="showcase" aria-label="产品预览">
+      <div class="painting"><article class="poem"><h2>春晓</h2><p>春眠不觉晓
+处处闻啼鸟
+夜来风雨声
+花落知多少</p></article></div>
+      <div class="cards"><article class="card"><h2>搜诗词</h2><p>一句话、意象、作者都能搜，快速找到可用内容。</p></article><article class="card"><h2>赏意境</h2><p>把诗句整理成画中题诗的生图 Prompt，生成可分享画面。</p></article><article class="card"><h2>创作品</h2><p>把灵感保存到作品库，后续再公开展示。</p></article></div>
+    </section>
+  </main>
+  <footer class="wrap foot">Powered by Qanlo · 诗词画曲赋 © 2026</footer>
+  <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/service-worker.js").catch(function(){});}</script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 诗词知识库 API 文档</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f6efe3;color:#17120d;line-height:1.75}
+    .wrap{max-width:980px;margin:0 auto;padding:38px 22px}.card{background:#fffaf0;border:1px solid #e3d1b9;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 18px 55px rgba(93,56,20,.1)}
+    code,pre{background:#17120d;color:#fff1d6;border-radius:12px}code{padding:2px 6px}pre{padding:16px;overflow:auto}.btn{display:inline-block;background:#a8322a;color:white;padding:10px 14px;border-radius:999px;text-decoration:none;font-weight:800;margin-right:8px}.muted{color:#756a5b}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <h1>AI 诗词知识库 API 文档</h1>
+  <p class="muted">当前公开页面只展示零客户阶段的核心路径：搜诗词、生成意境图、保存作品、查看用量和反馈。音频、音乐、证书、钱包、打赏、合作方导出等接口保留后端能力，但暂不作为前台入口展示。</p>
+  <p><a class="btn" href="/console">进入控制台</a><a class="btn" href="/pricing">价格套餐</a><a class="btn" href="/openapi.yaml">openapi.yaml</a></p>
+  <section class="card">
+    <h2>认证方式</h2>
+    <p>客户调用使用 <code>X-API-Key</code>。管理员接口使用 <code>X-Admin-Token</code>。</p>
+    <pre>curl "http://localhost:1279/api/v1/poems/query?q=月&page_size=3" \
+  -H "X-API-Key: cp_live_xxx"</pre>
+  </section>
+  <section class="card">
+    <h2>核心接口</h2>
+    <ul>
+      <li><code>GET /api/v1/poems/search</code>：基础诗词搜索，控制台默认使用。</li>
+      <li><code>GET /api/v1/poems/query</code>：带 API Key 的复合查询。</li>
+      <li><code>GET /api/v1/knowledge/recall</code>：AI 知识库召回。</li>
+      <li><code>POST /api/v1/images/generate</code>：诗词意境图生成。</li>
+      <li><code>GET /api/v1/keys/current</code>：查看当前 Key 与今日用量。</li>
+      <li><code>POST /api/v1/billing/qanlo/provision</code>：生成 Qanlo Agent Key 绑定 URL。</li>
+      <li><code>POST /api/v1/billing/qanlo/recharge-session</code>：生成 Qanlo 充值 URL。</li>
+      <li><code>GET /api/v1/usage/daily</code> / <code>GET /api/v1/usage/endpoints</code> / <code>GET /api/v1/usage/queries</code>：客户用量统计。</li>
+      <li><code>POST /api/v1/works</code> / <code>GET /api/v1/works</code>：保存与查看自己的作品。</li>
+      <li><code>POST /api/v1/works/reverse-create</code>：从故事、图片说明或意境反向生成私有草稿。</li>
+      <li><code>POST /api/v1/works/:id/images/generate</code>：按作品生成诗画图片。</li>
+      <li><code>GET /api/v1/public/works</code> / <code>GET /api/v1/public/rankings/works</code>：公开作品与榜单。</li>
+      <li><code>POST /api/v1/feedback</code>：客户反馈。</li>
+    </ul>
+  </section>
+  <section class="card">
+    <h2>生图能力</h2>
+    <p>控制台右侧图片区已接入直接生图。用户在页面填写并本地保存自己的 Qanlo 生图 API Key；接口会先校验 <code>X-API-Key</code> 和每日额度，再把本次请求里的 <code>image_api_key</code> 代转给 Qanlo 生图网关，不落库、不使用服务器全站 Key；未提供时返回 <code>400 image_api_key_required</code>，不会消耗生图额度。</p>
+  </section>
+  <section class="card">
+    <h2>运营接口</h2>
+    <ul>
+      <li><code>GET /api/v1/admin/api-keys</code>：管理员查看客户 Key。</li>
+      <li><code>PATCH /api/v1/admin/api-keys/:id</code>：调整每日限额、套餐和启停状态。</li>
+      <li><code>GET /api/v1/admin/feedback</code>：查看客户反馈。</li>
+      <li><code>GET /api/v1/admin/usage/daily</code>：全站每日趋势。</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

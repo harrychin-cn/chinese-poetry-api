@@ -16,7 +16,8 @@ type DynastyStats struct {
 	Count   int               `json:"count"`
 }
 
-type Query struct{}
+type Query struct {
+}
 
 type TypeStats struct {
 	Type  *database.PoetryType `json:"type"`

@@ -1,0 +1,19 @@
+{
+  "name": "诗词画曲赋",
+  "short_name": "诗词画曲赋",
+  "description": "AI 驱动的诗词知识库控制台",
+  "start_url": "/console",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffaf0",
+  "theme_color": "#a8322a",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

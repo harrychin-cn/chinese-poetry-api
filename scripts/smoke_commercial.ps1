@@ -367,13 +367,16 @@ if ($health.Json.status -ne "healthy") {
 }
 
 $docsPage = Invoke-SmokeTextRequest -Method GET -Path "/docs" -Step "docs page" -Contains @(
-    'href="console"',
-    'href="pricing"',
-    'href="openapi.yaml"',
-    "POST /api/v1/keys",
+    'href="/console"',
+    'href="/pricing"',
+    'href="/openapi.yaml"',
+    "GET /api/v1/poems/search",
     "GET /api/v1/knowledge/recall",
     "POST /api/v1/images/generate",
-    "POST /api/v1/works/:id/images/generate"
+    "POST /api/v1/works/:id/images/generate",
+    "POST /api/v1/billing/qanlo/recharge-session",
+    "X-API-Key",
+    "X-Admin-Token"
 )
 $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "openapi yaml" -Contains @(
     "openapi: 3.0.3",
@@ -388,18 +391,18 @@ $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "open
     "X-Admin-Token"
 )
 $consolePage = Invoke-SmokeTextRequest -Method GET -Path "/console" -Step "console page" -Contains @(
-    "Library",
+    "打开就能搜诗词",
+    "诗词卡片",
     "/api/v1/public/works",
     "本页不会自动创建免费 Key",
-    "生图 API Key",
-    "Qanlo 绑定 / 充值",
-    "AI 知识库召回",
+    "充值与绑定",
+    "生图 Key 管理",
+    "意境图区",
+    "图片 Prompt 区",
+    "画中题诗",
     "生成图片",
-    "画面上显示诗句文字",
     "下载图片",
     "console-placeholder-bg.png",
-    "画中题诗",
-    "不要像背景图上后贴图案",
     "/api/v1/images/generate"
 )
 $pricingPage = Invoke-SmokeTextRequest -Method GET -Path "/pricing" -Step "pricing page" -Contains @(
