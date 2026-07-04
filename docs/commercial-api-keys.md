@@ -80,7 +80,11 @@ GET /api/v1/works/:id/license-acceptances
 GET /api/v1/works/:id/plagiarism-report
 GET /api/v1/works/:id/media-assets
 GET /api/v1/works/:id/image-jobs
+GET /api/v1/works/:id/audio-jobs
+GET /api/v1/works/:id/music-jobs
 POST /api/v1/works/:id/images/generate
+POST /api/v1/works/:id/audio/generate
+POST /api/v1/works/:id/music/generate
 ```
 
 管理员后台接口需要 `X-Admin-Token`：
@@ -335,6 +339,49 @@ curl "http://localhost:1279/api/v1/works/1/image-jobs" -H "X-API-Key: cp_live_xx
 这个入口会把原创作品正文、作品 `image_prompt`、本次补充要求合并成“画中题诗”的完整生图提示词。`dry_run=true` 只落库任务和 Prompt；真实生成成功后会把图片文件保存到 `IMAGE_STORAGE_DIR`，用 `/media-assets/...` 形式返回正式资产 URL，同时保存 `media_assets`、`image_generation_jobs`，并记录一次本地 API Key 用量。
 
 积分规则（阶段 3 MVP）：每个 API Key 首次使用会初始化 `IMAGE_INITIAL_CREDITS` 积分，真实生图成功扣 `IMAGE_CREDIT_COST` 分并写入 `credit_transactions`；`dry_run` 和缓存命中不扣分。余额不足时返回 `402 insufficient image credits` 和充值入口。相同 work/prompt/model/size/quality/output_format 默认复用最近一次图片资产，返回 `cached=true`、新增成功任务并关联同一资产，不调用生图网关、不增加本地用量、不扣积分；需要强制重生时传 `"force_regenerate": true`。
+
+
+## 吟诵/配乐/音乐 MVP
+
+作品级吟诵音频走 OpenAI 兼容 `/audio/speech` 网关；配乐先落地为可复核的 JSON 草稿，后续再接正式音乐模型。两者都会写入 `media_assets` 和对应 job 表。
+
+```bash
+# 只准备吟诵 Prompt / job，不调用音频网关、不扣分
+curl -X POST "http://localhost:1279/api/v1/works/1/audio/generate" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"style":"古风吟诵","background_style":"古琴清雅","dry_run":true}'
+
+# 真实生成吟诵音频：可用服务端 AUDIO_API_KEY，也可按次传 X-Audio-API-Key
+curl -X POST "http://localhost:1279/api/v1/works/1/audio/generate" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "X-Audio-API-Key: sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"voice":"alloy","style":"古风吟诵","background_style":"古琴清雅"}'
+
+# 配乐草稿：本阶段本地生成 JSON 资产，默认不扣分、不调外部网关
+curl -X POST "http://localhost:1279/api/v1/works/1/music/generate" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"background","music_style":"古琴清雅"}'
+
+curl "http://localhost:1279/api/v1/works/1/media-assets?asset_type=all" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1/audio-jobs" -H "X-API-Key: cp_live_xxx"
+curl "http://localhost:1279/api/v1/works/1/music-jobs" -H "X-API-Key: cp_live_xxx"
+```
+
+可配置项：
+
+```env
+AUDIO_BASE_URL=https://qanlo.com/openai/v1
+AUDIO_MODEL=gpt-4o-mini-tts
+AUDIO_VOICE=alloy
+AUDIO_OUTPUT_FORMAT=mp3
+AUDIO_TIMEOUT_SECONDS=180
+AUDIO_CREDIT_COST=1
+AUDIO_MUSIC_CREDIT_COST=0
+AUDIO_INITIAL_CREDITS=20
+```
 
 ## 查看 API Key 与今日用量
 

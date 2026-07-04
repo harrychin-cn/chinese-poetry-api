@@ -55,6 +55,18 @@ image:
   credit_cost: 1
   initial_credits: 20
 
+audio:
+  # Recitation/music generation gateway defaults. Users may provide their own key per request.
+  api_key: ""
+  base_url: "https://qanlo.com/openai/v1"
+  model: "gpt-4o-mini-tts"
+  voice: "alloy"
+  output_format: "mp3"
+  timeout_seconds: 180
+  credit_cost: 1
+  music_credit_cost: 0
+  initial_credits: 20
+
 graphql:
   playground: false  # Enable GraphQL Playground (set to true for development)
   introspection: true

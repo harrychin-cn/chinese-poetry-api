@@ -681,7 +681,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [all, image]
+            enum: [all, image, audio, music]
             default: all
         - $ref: "#/components/parameters/LimitParam"
       responses:
@@ -722,6 +722,80 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "503":
           description: Image gateway key is missing
+  /api/v1/works/{id}/audio-jobs:
+    get:
+      tags:
+        - Works
+      summary: List recitation audio-generation jobs for an owned work
+      operationId: listWorkAudioJobs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/works/{id}/music-jobs:
+    get:
+      tags:
+        - Works
+      summary: List background-music draft jobs for an owned work
+      operationId: listWorkMusicJobs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/works/{id}/audio/generate:
+    post:
+      tags:
+        - Works
+      summary: Generate or dry-run a work recitation audio asset
+      operationId: generateWorkAudio
+      description: dry_run=true only prepares the prompt/job. Real generation calls the configured OpenAI-compatible /audio/speech gateway, stores a local audio media asset, records one audio job, and spends audio credits after success.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "402":
+          description: Audio credits are insufficient
+        "503":
+          description: Audio gateway key is missing
+  /api/v1/works/{id}/music/generate:
+    post:
+      tags:
+        - Works
+      summary: Generate or dry-run a work background-music draft asset
+      operationId: generateWorkMusic
+      description: Stage-4 MVP creates a structured JSON music/arrangement draft and stores it as a local media asset. It does not call an external music provider yet.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "402":
+          description: Music credits are insufficient
   /api/v1/public/works/{code}:
     get:
       tags:

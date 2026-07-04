@@ -152,6 +152,10 @@
     .asset-thumb { border: 1px solid #eadac5; border-radius: 12px; padding: 6px; background: rgba(255,253,247,.72); min-height: 72px; text-align: left; }
     .asset-thumb img { width: 100%; height: 72px; object-fit: cover; border-radius: 8px; display: block; background: #f6ead7; }
     .asset-thumb span { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .asset-card { grid-column: span 3; border: 1px solid #eadac5; border-radius: 12px; padding: 8px; background: rgba(255,253,247,.72); }
+    .asset-card b { display: block; font-size: 12px; margin-bottom: 5px; }
+    .asset-card audio { width: 100%; height: 32px; }
+    .asset-card a { color: var(--red); font-weight: 800; text-decoration: none; }
     @media (max-width: 1050px) {
       body { overflow: auto; }
       .app { display: block; height: auto; }
@@ -247,10 +251,12 @@
         <button class="btn primary" id="saveWork" type="button">保存作品</button>
         <button class="btn ghost" id="newWork" type="button">新建草稿</button>
         <button class="btn outline" id="generateWorkImage" type="button">生成当前作品图</button>
-        <button class="btn outline" id="refreshWorkAssets" type="button">刷新图片资产</button>
+        <button class="btn outline" id="generateWorkAudio" type="button">生成吟诵音频</button>
+        <button class="btn outline" id="generateWorkMusic" type="button">生成配乐草稿</button>
+        <button class="btn outline" id="refreshWorkAssets" type="button">刷新作品资产</button>
       </div>
       <div class="profile-line"><span class="tiny" id="workEditHint">当前：新建作品</span></div>
-      <div class="asset-list" id="workAssetList"><div class="soft-note">选择作品后显示图片资产。</div></div>
+      <div class="asset-list" id="workAssetList"><div class="soft-note">选择作品后显示图片 / 吟诵 / 配乐资产。</div></div>
       <div class="work-list" id="workList"></div>
     </section>
 
@@ -321,7 +327,7 @@
         <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
       </div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /docs /pricing</div>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -757,24 +763,29 @@
       content: normalizeLines(work.content || "")
     });
   }
-  function assetImageSrc(asset) {
+  function assetURL(asset) {
     if (!asset) return "";
-    var src = asset.url || (asset.b64_json ? ("data:" + (asset.mime_type || "image/png") + ";base64," + asset.b64_json) : "");
+    var src = asset.url || (asset.b64_json ? ("data:" + (asset.mime_type || "application/octet-stream") + ";base64," + asset.b64_json) : "");
     if (src && src.charAt(0) === "/") src = apiURL(src);
     return src;
+  }
+  function assetImageSrc(asset) {
+    if (!asset || (asset.asset_type && asset.asset_type !== "image")) return "";
+    return assetURL(asset);
   }
   async function loadWorkAssets(id, showToast) {
     if (!id || !apiKey()) return;
     try {
-      var json = await fetchJSON("/api/v1/works/" + id + "/media-assets?asset_type=image&limit=12", { headers: { "X-API-Key": apiKey() } });
+      var json = await fetchJSON("/api/v1/works/" + id + "/media-assets?asset_type=all&limit=20", { headers: { "X-API-Key": apiKey() } });
       var data = json.data || json;
       state.workAssets = data.items || [];
       renderWorkAssets(state.workAssets);
-      if (state.workAssets.length && !state.imageSrc) renderGeneratedImage(assetImageSrc(state.workAssets[0]));
-      if (showToast) toast("已刷新图片资产 " + state.workAssets.length + " 张");
+      var firstImage = state.workAssets.find(function (asset) { return (asset.asset_type || "image") === "image"; });
+      if (firstImage && !state.imageSrc) renderGeneratedImage(assetImageSrc(firstImage));
+      if (showToast) toast("\u5df2\u5237\u65b0\u4f5c\u54c1\u8d44\u4ea7 " + state.workAssets.length + " \u4e2a");
     } catch (e) {
       renderWorkAssets([]);
-      if (showToast) toast(e.message || "图片资产加载失败");
+      if (showToast) toast(e.message || "\u4f5c\u54c1\u8d44\u4ea7\u52a0\u8f7d\u5931\u8d25");
     }
   }
   function renderWorkAssets(assets) {
@@ -782,12 +793,23 @@
     if (!box) return;
     assets = assets || [];
     if (!assets.length) {
-      box.innerHTML = '<div class="soft-note">当前作品还没有图片资产，先点击生成当前作品图。</div>';
+      box.innerHTML = '<div class="soft-note">\u5f53\u524d\u4f5c\u54c1\u8fd8\u6ca1\u6709\u8d44\u4ea7\uff0c\u53ef\u5148\u751f\u6210\u4f5c\u54c1\u56fe\u3001\u541f\u8bf5\u97f3\u9891\u6216\u914d\u4e50\u8349\u7a3f\u3002</div>';
       return;
     }
     box.innerHTML = assets.map(function (asset, i) {
-      var src = assetImageSrc(asset);
-      return '<button class="asset-thumb" data-i="' + i + '" type="button"><img src="' + escapeHTML(src) + '" alt="意境图"><span>' + escapeHTML((asset.size || "image") + " · " + (asset.credit_cost || 0) + "分") + '</span></button>';
+      var type = asset.asset_type || "image";
+      var src = assetURL(asset);
+      var cost = (asset.credit_cost || 0) + "\u5206";
+      if (type === "image") {
+        return '<button class="asset-thumb" data-i="' + i + '" type="button"><img src="' + escapeHTML(src) + '" alt="\u610f\u5883\u56fe"><span>' + escapeHTML((asset.size || "image") + " - " + cost) + '</span></button>';
+      }
+      if (type === "audio") {
+        return '<div class="asset-card"><b>\u541f\u8bf5\u97f3\u9891 - ' + escapeHTML(cost) + '</b><audio controls src="' + escapeHTML(src) + '"></audio></div>';
+      }
+      if (type === "music") {
+        return '<div class="asset-card"><b>\u914d\u4e50\u8349\u7a3f - ' + escapeHTML(cost) + '</b><a href="' + escapeHTML(src) + '" target="_blank" rel="noopener">\u6253\u5f00\u8349\u7a3f JSON</a></div>';
+      }
+      return '<div class="asset-card"><b>' + escapeHTML(type) + ' - ' + escapeHTML(cost) + '</b><a href="' + escapeHTML(src) + '" target="_blank" rel="noopener">\u6253\u5f00\u8d44\u4ea7</a></div>';
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll(".asset-thumb"), function (btn) {
       btn.onclick = function () {
@@ -1076,6 +1098,72 @@
     }
   }
 
+  async function generateWorkAudio() {
+    var key = requireKey();
+    var audioKey = requireImageKey();
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
+    if (!selected) { toast("\u8bf7\u5148\u9009\u62e9\u4e00\u4e2a\u4f5c\u54c1"); return; }
+    var btn = $("generateWorkAudio");
+    var oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "\u751f\u6210\u4e2d...";
+    try {
+      var json = await fetchJSON("/api/v1/works/" + selected.id + "/audio/generate", {
+        method: "POST",
+        headers: { "X-API-Key": key, "X-Audio-API-Key": audioKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          voice: "alloy",
+          style: $("style").value || "\u53e4\u98ce\u541f\u8bf5",
+          background_style: "\u53e4\u7434\u6e05\u96c5",
+          prompt: ($("promptOut").value || "").trim(),
+          audio_api_key: audioKey
+        })
+      });
+      var data = json.data || json;
+      await loadWorkAssets(selected.id, false);
+      var balance = data.credits && data.credits.balance;
+      toast("\u541f\u8bf5\u97f3\u9891\u5df2\u751f\u6210" + (balance == null ? "" : "\uff0c\u5269\u4f59\u79ef\u5206 " + balance));
+      refreshStatus();
+    } catch (e) {
+      toast(e.message || "\u541f\u8bf5\u97f3\u9891\u751f\u6210\u5931\u8d25");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+
+  async function generateWorkMusic() {
+    var key = requireKey();
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
+    if (!selected) { toast("\u8bf7\u5148\u9009\u62e9\u4e00\u4e2a\u4f5c\u54c1"); return; }
+    var btn = $("generateWorkMusic");
+    var oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "\u751f\u6210\u4e2d...";
+    try {
+      var json = await fetchJSON("/api/v1/works/" + selected.id + "/music/generate", {
+        method: "POST",
+        headers: { "X-API-Key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "background",
+          music_style: "\u53e4\u7434\u6e05\u96c5",
+          prompt: ($("promptOut").value || "").trim()
+        })
+      });
+      var data = json.data || json;
+      await loadWorkAssets(selected.id, false);
+      var balance = data.credits && data.credits.balance;
+      toast("\u914d\u4e50\u8349\u7a3f\u5df2\u751f\u6210" + (balance == null ? "" : "\uff0c\u5269\u4f59\u79ef\u5206 " + balance));
+      refreshStatus();
+    } catch (e) {
+      toast(e.message || "\u914d\u4e50\u8349\u7a3f\u751f\u6210\u5931\u8d25");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+
+
   async function bindQanlo() {
     var key = requireKey();
     try {
@@ -1143,6 +1231,8 @@
   $("saveWork").onclick = saveWork;
   $("newWork").onclick = clearWorkForm;
   $("generateWorkImage").onclick = function () { if (!state.selectedWork) { toast("请先选择一个作品"); return; } generateImage(); };
+  $("generateWorkAudio").onclick = generateWorkAudio;
+  $("generateWorkMusic").onclick = generateWorkMusic;
   $("refreshWorkAssets").onclick = function () { if (!state.selectedWork) { toast("请先选择作品"); return; } loadWorkAssets(state.selectedWork.id, true); };
   $("workStatusFilter").onchange = function () { loadWorks(true); };
   $("query").addEventListener("input", function () {

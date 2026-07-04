@@ -11,6 +11,8 @@ import (
 
 const (
 	MediaAssetTypeImage       = "image"
+	MediaAssetTypeAudio       = "audio"
+	MediaAssetTypeMusic       = "music"
 	MediaAssetSourceGenerated = "generated"
 
 	ImageJobStatusPending     = "pending"
@@ -81,6 +83,45 @@ type ImagePrompt struct {
 
 func (ImagePrompt) TableName() string { return "image_prompts" }
 
+// AudioGenerationJob records work recitation/TTS generation state.
+type AudioGenerationJob struct {
+	ID              int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	WorkID          int64     `gorm:"column:work_id;not null" json:"work_id"`
+	APIKeyID        int64     `gorm:"column:api_key_id;not null" json:"api_key_id"`
+	Status          string    `gorm:"column:status;not null" json:"status"`
+	Prompt          string    `gorm:"column:prompt;not null" json:"prompt"`
+	Voice           string    `gorm:"column:voice" json:"voice,omitempty"`
+	Style           string    `gorm:"column:style" json:"style,omitempty"`
+	BackgroundStyle string    `gorm:"column:background_style" json:"background_style,omitempty"`
+	Model           string    `gorm:"column:model" json:"model,omitempty"`
+	OutputFormat    string    `gorm:"column:output_format" json:"output_format,omitempty"`
+	ErrorMessage    string    `gorm:"column:error_message" json:"error_message,omitempty"`
+	MediaAssetID    *int64    `gorm:"column:media_asset_id" json:"media_asset_id,omitempty"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
+}
+
+func (AudioGenerationJob) TableName() string { return "audio_generation_jobs" }
+
+// MusicGenerationJob records melody/background-music draft generation state.
+type MusicGenerationJob struct {
+	ID           int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	WorkID       int64     `gorm:"column:work_id;not null" json:"work_id"`
+	APIKeyID     int64     `gorm:"column:api_key_id;not null" json:"api_key_id"`
+	Status       string    `gorm:"column:status;not null" json:"status"`
+	Prompt       string    `gorm:"column:prompt;not null" json:"prompt"`
+	MusicStyle   string    `gorm:"column:music_style" json:"music_style,omitempty"`
+	Mode         string    `gorm:"column:mode" json:"mode,omitempty"`
+	Model        string    `gorm:"column:model" json:"model,omitempty"`
+	OutputFormat string    `gorm:"column:output_format" json:"output_format,omitempty"`
+	ErrorMessage string    `gorm:"column:error_message" json:"error_message,omitempty"`
+	MediaAssetID *int64    `gorm:"column:media_asset_id" json:"media_asset_id,omitempty"`
+	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
+}
+
+func (MusicGenerationJob) TableName() string { return "music_generation_jobs" }
+
 type CreateImagePromptParams struct {
 	WorkID   int64
 	APIKeyID int64
@@ -123,6 +164,29 @@ type CreateMediaAssetParams struct {
 	ChecksumSHA256  string
 	CreditCost      int
 	Visibility      string
+}
+
+type CreateAudioGenerationJobParams struct {
+	WorkID          int64
+	APIKeyID        int64
+	Status          string
+	Prompt          string
+	Voice           string
+	Style           string
+	BackgroundStyle string
+	Model           string
+	OutputFormat    string
+}
+
+type CreateMusicGenerationJobParams struct {
+	WorkID       int64
+	APIKeyID     int64
+	Status       string
+	Prompt       string
+	MusicStyle   string
+	Mode         string
+	Model        string
+	OutputFormat string
 }
 
 type FindCachedWorkImageAssetParams struct {
@@ -350,7 +414,176 @@ func (r *Repository) ListWorkImageJobs(apiKeyID, workID int64, limit int) ([]Ima
 	return items, nil
 }
 
+func (r *Repository) CreateAudioGenerationJob(params CreateAudioGenerationJobParams) (*AudioGenerationJob, error) {
+	if _, err := r.GetOriginalWork(params.APIKeyID, params.WorkID); err != nil {
+		return nil, err
+	}
+	prompt := limitString(strings.TrimSpace(params.Prompt), 3000)
+	if prompt == "" {
+		return nil, fmt.Errorf("%w: prompt is required", ErrInvalidQueryParam)
+	}
+	job := AudioGenerationJob{
+		WorkID:          params.WorkID,
+		APIKeyID:        params.APIKeyID,
+		Status:          normalizeGenerationJobStatus(params.Status),
+		Prompt:          prompt,
+		Voice:           limitString(strings.TrimSpace(params.Voice), 80),
+		Style:           limitString(strings.TrimSpace(params.Style), 80),
+		BackgroundStyle: limitString(strings.TrimSpace(params.BackgroundStyle), 120),
+		Model:           limitString(strings.TrimSpace(params.Model), 80),
+		OutputFormat:    limitString(strings.TrimSpace(params.OutputFormat), 40),
+	}
+	if err := r.db.Create(&job).Error; err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (r *Repository) CompleteAudioGenerationJob(jobID int64, mediaAssetID *int64) (*AudioGenerationJob, error) {
+	if jobID < 1 {
+		return nil, ErrInvalidQueryParam
+	}
+	updates := map[string]any{
+		"status":        ImageJobStatusSucceeded,
+		"error_message": "",
+		"updated_at":    time.Now().UTC(),
+	}
+	if mediaAssetID != nil {
+		updates["media_asset_id"] = *mediaAssetID
+	}
+	return r.updateAudioGenerationJob(jobID, updates)
+}
+
+func (r *Repository) FailAudioGenerationJob(jobID int64, message string) (*AudioGenerationJob, error) {
+	if jobID < 1 {
+		return nil, ErrInvalidQueryParam
+	}
+	return r.updateAudioGenerationJob(jobID, map[string]any{
+		"status":        ImageJobStatusFailed,
+		"error_message": limitString(strings.TrimSpace(message), 500),
+		"updated_at":    time.Now().UTC(),
+	})
+}
+
+func (r *Repository) updateAudioGenerationJob(jobID int64, updates map[string]any) (*AudioGenerationJob, error) {
+	result := r.db.Model(&AudioGenerationJob{}).Where("id = ?", jobID).Updates(updates)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var job AudioGenerationJob
+	if err := r.db.Where("id = ?", jobID).First(&job).Error; err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (r *Repository) ListWorkAudioJobs(apiKeyID, workID int64, limit int) ([]AudioGenerationJob, error) {
+	if _, err := r.GetOriginalWork(apiKeyID, workID); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	var items []AudioGenerationJob
+	if err := r.db.Where("work_id = ? AND api_key_id = ?", workID, apiKeyID).
+		Order("created_at DESC, id DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *Repository) CreateMusicGenerationJob(params CreateMusicGenerationJobParams) (*MusicGenerationJob, error) {
+	if _, err := r.GetOriginalWork(params.APIKeyID, params.WorkID); err != nil {
+		return nil, err
+	}
+	prompt := limitString(strings.TrimSpace(params.Prompt), 3000)
+	if prompt == "" {
+		return nil, fmt.Errorf("%w: prompt is required", ErrInvalidQueryParam)
+	}
+	job := MusicGenerationJob{
+		WorkID:       params.WorkID,
+		APIKeyID:     params.APIKeyID,
+		Status:       normalizeGenerationJobStatus(params.Status),
+		Prompt:       prompt,
+		MusicStyle:   limitString(strings.TrimSpace(params.MusicStyle), 120),
+		Mode:         limitString(strings.TrimSpace(params.Mode), 40),
+		Model:        limitString(strings.TrimSpace(params.Model), 80),
+		OutputFormat: limitString(strings.TrimSpace(params.OutputFormat), 40),
+	}
+	if err := r.db.Create(&job).Error; err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (r *Repository) CompleteMusicGenerationJob(jobID int64, mediaAssetID *int64) (*MusicGenerationJob, error) {
+	if jobID < 1 {
+		return nil, ErrInvalidQueryParam
+	}
+	updates := map[string]any{
+		"status":        ImageJobStatusSucceeded,
+		"error_message": "",
+		"updated_at":    time.Now().UTC(),
+	}
+	if mediaAssetID != nil {
+		updates["media_asset_id"] = *mediaAssetID
+	}
+	return r.updateMusicGenerationJob(jobID, updates)
+}
+
+func (r *Repository) FailMusicGenerationJob(jobID int64, message string) (*MusicGenerationJob, error) {
+	if jobID < 1 {
+		return nil, ErrInvalidQueryParam
+	}
+	return r.updateMusicGenerationJob(jobID, map[string]any{
+		"status":        ImageJobStatusFailed,
+		"error_message": limitString(strings.TrimSpace(message), 500),
+		"updated_at":    time.Now().UTC(),
+	})
+}
+
+func (r *Repository) updateMusicGenerationJob(jobID int64, updates map[string]any) (*MusicGenerationJob, error) {
+	result := r.db.Model(&MusicGenerationJob{}).Where("id = ?", jobID).Updates(updates)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var job MusicGenerationJob
+	if err := r.db.Where("id = ?", jobID).First(&job).Error; err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (r *Repository) ListWorkMusicJobs(apiKeyID, workID int64, limit int) ([]MusicGenerationJob, error) {
+	if _, err := r.GetOriginalWork(apiKeyID, workID); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	var items []MusicGenerationJob
+	if err := r.db.Where("work_id = ? AND api_key_id = ?", workID, apiKeyID).
+		Order("created_at DESC, id DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func normalizeImageJobStatus(status string) string {
+	return normalizeGenerationJobStatus(status)
+}
+
+func normalizeGenerationJobStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case ImageJobStatusPromptReady:
 		return ImageJobStatusPromptReady

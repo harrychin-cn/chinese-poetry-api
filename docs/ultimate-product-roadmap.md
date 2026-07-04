@@ -426,8 +426,14 @@ IMAGE_MODEL=gpt-image-2
 
 - `audio_generation_jobs`
 - `music_generation_jobs`
-- `recitation_assets`
-- `music_assets`
+- `media_assets`（`asset_type=audio/music`，统一存储作品衍生资产）
+- `credit_transactions`（吟诵真实生成扣积分；配乐草稿默认 0 分，可配置）
+
+当前 MVP 进度：
+
+- 作品级 `POST /api/v1/works/:id/audio/generate` 已支持 dry_run 和 OpenAI 兼容 `/audio/speech` 真实生成，成功后存本地音频资产；
+- 作品级 `POST /api/v1/works/:id/music/generate` 先生成可复核 JSON 配乐草稿，后续再接正式音乐模型；
+- 控制台作品管理区已能触发吟诵音频、配乐草稿，并在作品资产列表展示图片 / 音频 / 草稿。
 
 阶段结束标准：
 

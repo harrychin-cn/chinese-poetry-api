@@ -19,6 +19,7 @@ type Config struct {
 	APIAuth   APIAuthConfig   `mapstructure:"api_auth"`
 	Qanlo     QanloConfig     `mapstructure:"qanlo"`
 	Image     ImageConfig     `mapstructure:"image"`
+	Audio     AudioConfig     `mapstructure:"audio"`
 	GraphQL   GraphQLConfig   `mapstructure:"graphql"`
 	Search    SearchConfig    `mapstructure:"search"`
 }
@@ -92,6 +93,20 @@ type ImageConfig struct {
 	PublicBasePath string `mapstructure:"public_base_path"`
 	CreditCost     int    `mapstructure:"credit_cost"`
 	InitialCredits int    `mapstructure:"initial_credits"`
+}
+
+// AudioConfig holds recitation/music generation gateway defaults. Users can
+// pass a per-request audio key from the console, similar to image generation.
+type AudioConfig struct {
+	APIKey          string `mapstructure:"api_key"`
+	BaseURL         string `mapstructure:"base_url"`
+	Model           string `mapstructure:"model"`
+	Voice           string `mapstructure:"voice"`
+	OutputFormat    string `mapstructure:"output_format"`
+	TimeoutSeconds  int    `mapstructure:"timeout_seconds"`
+	CreditCost      int    `mapstructure:"credit_cost"`
+	MusicCreditCost int    `mapstructure:"music_credit_cost"`
+	InitialCredits  int    `mapstructure:"initial_credits"`
 }
 
 // GraphQLConfig holds GraphQL configuration
@@ -176,6 +191,15 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("image.public_base_path", "/media-assets")
 	v.SetDefault("image.credit_cost", 1)
 	v.SetDefault("image.initial_credits", 20)
+	v.SetDefault("audio.api_key", "")
+	v.SetDefault("audio.base_url", "https://qanlo.com/openai/v1")
+	v.SetDefault("audio.model", "gpt-4o-mini-tts")
+	v.SetDefault("audio.voice", "alloy")
+	v.SetDefault("audio.output_format", "mp3")
+	v.SetDefault("audio.timeout_seconds", 180)
+	v.SetDefault("audio.credit_cost", 1)
+	v.SetDefault("audio.music_credit_cost", 0)
+	v.SetDefault("audio.initial_credits", 20)
 	v.SetDefault("graphql.playground", false)
 	v.SetDefault("graphql.introspection", true)
 	v.SetDefault("graphql.complexity_limit", 1000)
@@ -329,6 +353,41 @@ func bindEnvVars(v *viper.Viper) {
 			v.Set("image.initial_credits", value)
 		}
 	}
+	if audioAPIKey := os.Getenv("AUDIO_API_KEY"); audioAPIKey != "" {
+		v.Set("audio.api_key", audioAPIKey)
+	}
+	if audioBaseURL := os.Getenv("AUDIO_BASE_URL"); audioBaseURL != "" {
+		v.Set("audio.base_url", audioBaseURL)
+	}
+	if audioModel := os.Getenv("AUDIO_MODEL"); audioModel != "" {
+		v.Set("audio.model", audioModel)
+	}
+	if audioVoice := os.Getenv("AUDIO_VOICE"); audioVoice != "" {
+		v.Set("audio.voice", audioVoice)
+	}
+	if audioOutputFormat := os.Getenv("AUDIO_OUTPUT_FORMAT"); audioOutputFormat != "" {
+		v.Set("audio.output_format", audioOutputFormat)
+	}
+	if audioTimeout := os.Getenv("AUDIO_TIMEOUT_SECONDS"); audioTimeout != "" {
+		if value, err := strconv.Atoi(audioTimeout); err == nil {
+			v.Set("audio.timeout_seconds", value)
+		}
+	}
+	if audioCreditCost := os.Getenv("AUDIO_CREDIT_COST"); audioCreditCost != "" {
+		if value, err := strconv.Atoi(audioCreditCost); err == nil {
+			v.Set("audio.credit_cost", value)
+		}
+	}
+	if musicCreditCost := os.Getenv("AUDIO_MUSIC_CREDIT_COST"); musicCreditCost != "" {
+		if value, err := strconv.Atoi(musicCreditCost); err == nil {
+			v.Set("audio.music_credit_cost", value)
+		}
+	}
+	if audioInitialCredits := os.Getenv("AUDIO_INITIAL_CREDITS"); audioInitialCredits != "" {
+		if value, err := strconv.Atoi(audioInitialCredits); err == nil {
+			v.Set("audio.initial_credits", value)
+		}
+	}
 
 	// Database connection pool
 	if maxOpen := os.Getenv("DB_MAX_OPEN_CONNS"); maxOpen != "" {
@@ -419,6 +478,24 @@ func (c *Config) Validate() error {
 	}
 	if c.Image.InitialCredits < 0 {
 		return fmt.Errorf("image initial_credits cannot be negative")
+	}
+	if strings.TrimSpace(c.Audio.BaseURL) == "" {
+		return fmt.Errorf("audio base_url is required")
+	}
+	if strings.TrimSpace(c.Audio.Model) == "" {
+		return fmt.Errorf("audio model is required")
+	}
+	if c.Audio.TimeoutSeconds <= 0 {
+		return fmt.Errorf("audio timeout_seconds must be positive")
+	}
+	if c.Audio.CreditCost < 0 {
+		return fmt.Errorf("audio credit_cost cannot be negative")
+	}
+	if c.Audio.MusicCreditCost < 0 {
+		return fmt.Errorf("audio music_credit_cost cannot be negative")
+	}
+	if c.Audio.InitialCredits < 0 {
+		return fmt.Errorf("audio initial_credits cannot be negative")
 	}
 
 	return nil
