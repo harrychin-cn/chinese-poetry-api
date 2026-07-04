@@ -201,19 +201,6 @@
       <p class="soft-note">本页不会自动创建免费 Key。请先在 Qanlo 充值/开通，或由管理员发放 Key 后再填写。</p>
     </section>
 
-    <section class="card" id="imageKeyCard">
-      <div class="card-title">
-        <h2>生图 API Key</h2>
-        <span class="status off" id="imageKeyStatus"><i class="dot"></i>未配置</span>
-      </div>
-      <label for="imageApiKey">专用于生成图片</label>
-      <div class="key-row">
-        <input id="imageApiKey" type="password" placeholder="填写 IMAGE_API_KEY / Qanlo 图像 Key" autocomplete="off" />
-        <button class="icon-btn" type="button" id="saveImageKey" title="保存到本机">存</button>
-        <button class="icon-btn" type="button" id="copyImageKey" title="复制生图 Key">⧉</button>
-      </div>
-      <p class="soft-note">这个 Key 只用于“生成图片”，仅保存在本机浏览器；搜索诗词仍使用上方 API Key。</p>
-    </section>
 
     <section class="card account-form" id="accountCard">
       <div class="card-title">
@@ -468,7 +455,6 @@
   var BASE = appBase();
   function apiURL(path) { return path && path.charAt(0) === "/" ? BASE + path : path; }
   function apiKey() { return ($("apiKey").value || "").trim(); }
-  function imageAPIKey() { return ($("imageApiKey").value || "").trim(); }
   function toast(msg) {
     var el = $("toast");
     el.textContent = msg;
@@ -563,18 +549,6 @@
       $("todayUsage").textContent = "--";
       $("dailyLimit").textContent = "--";
       toast("已清除本机 Key");
-    }
-  }
-  function saveImageKey() {
-    var key = imageAPIKey();
-    if (key) {
-      localStorage.setItem("poetry_image_api_key", key);
-      setImageKeyStatus(true, "已保存");
-      toast("生图 API Key 已保存到本机");
-    } else {
-      localStorage.removeItem("poetry_image_api_key");
-      setImageKeyStatus(false, "未配置");
-      toast("已清除本机生图 Key");
     }
   }
   async function fetchJSON(path, opt) {

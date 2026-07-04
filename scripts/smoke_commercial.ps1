@@ -388,8 +388,8 @@ $openAPI = Invoke-SmokeTextRequest -Method GET -Path "/openapi.yaml" -Step "open
     "X-Admin-Token"
 )
 $consolePage = Invoke-SmokeTextRequest -Method GET -Path "/console" -Step "console page" -Contains @(
-    "AI 诗词知识库 API 控制台",
-    "诗画工坊",
+    "Library",
+    "/api/v1/public/works",
     "本页不会自动创建免费 Key",
     "生图 API Key",
     "Qanlo 绑定 / 充值",
