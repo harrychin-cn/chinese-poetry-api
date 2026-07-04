@@ -28,6 +28,8 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 	router.GET("/console-placeholder-bg.png", handler.ConsolePlaceholderImage)
 	router.GET("/docs", handler.DocsPage)
 	router.GET("/pricing", handler.PricingPage)
+	router.GET("/u/:handle", handler.UserPage)
+	router.GET("/users/:handle", handler.UserPage)
 	router.GET("/openapi.yaml", handler.OpenAPIYAML)
 
 	if cfg.Abuse.Enabled {
@@ -123,6 +125,10 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		v1.POST("/keys", apiKeyHandler.CreateClientAPIKey)
 		v1.GET("/keys/current", withAPIKey(middleware.APIKeyAuthNoUsage(repo), apiKeyHandler.GetCurrentAPIKey)...)
 
+		accountHandler := handler.NewAccountHandler(repo)
+		v1.GET("/account", withAPIKey(middleware.APIKeyAuthNoUsage(repo), accountHandler.Current)...)
+		v1.PATCH("/account", withAPIKey(middleware.APIKeyAuthNoUsage(repo), accountHandler.Update)...)
+
 		billingHandler := handler.NewBillingHandler(repo, cfg.Qanlo)
 		v1.POST("/billing/qanlo/provision", withAPIKey(middleware.APIKeyAuthNoUsage(repo), billingHandler.ProvisionQanlo)...)
 		v1.POST("/billing/qanlo/recharge-session", withAPIKey(middleware.APIKeyAuthNoUsage(repo), billingHandler.CreateQanloRechargeSession)...)
@@ -139,6 +145,8 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 
 		workHandler := handler.NewWorkHandler(repo)
 		v1.GET("/public/works/:code", workHandler.PublicGet)
+		v1.GET("/public/users/:handle", accountHandler.PublicProfile)
+		v1.GET("/public/users/:handle/works", accountHandler.PublicWorks)
 		v1.POST("/works", withAPIKey(middleware.APIKeyAuthNoUsage(repo), workHandler.Create)...)
 		v1.GET("/works", withAPIKey(middleware.APIKeyAuthNoUsage(repo), workHandler.List)...)
 		workImageHandler := handler.NewWorkImageHandler(repo, cfg.Image)

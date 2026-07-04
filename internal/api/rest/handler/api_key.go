@@ -105,6 +105,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"data": gin.H{
 			"id":          key.ID,
+			"account_id":  key.AccountID,
 			"name":        key.Name,
 			"tier":        key.Tier,
 			"daily_limit": key.DailyLimit,
@@ -203,6 +204,7 @@ func (h *APIKeyHandler) RevokeAPIKey(c *gin.Context) {
 func formatAPIKeyWithUsage(key database.APIKeyWithUsage) map[string]any {
 	result := map[string]any{
 		"id":           key.ID,
+		"account_id":   key.AccountID,
 		"name":         key.Name,
 		"tier":         key.Tier,
 		"daily_limit":  key.DailyLimit,

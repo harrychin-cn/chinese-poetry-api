@@ -81,12 +81,15 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 		return
 	}
 
-	imageAPIKey := strings.TrimSpace(req.ImageAPIKey)
+	imageAPIKey := strings.TrimSpace(c.GetHeader("X-Image-API-Key"))
+	if imageAPIKey == "" {
+		imageAPIKey = strings.TrimSpace(req.ImageAPIKey)
+	}
 	if imageAPIKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "image api key required",
 			"code":    "image_api_key_required",
-			"message": "请先在页面填写并保存 Qanlo 生图 API Key，再生成图片。",
+			"message": "\u8bf7\u5148\u5728\u9875\u9762\u586b\u5199\u5e76\u4fdd\u5b58 Qanlo \u751f\u56fe API Key\uff0c\u518d\u751f\u6210\u56fe\u7247\u3002",
 		})
 		return
 	}
@@ -98,23 +101,6 @@ func (h *ImageHandler) Generate(c *gin.Context) {
 	}
 	if len([]rune(prompt)) > 3000 {
 		respondError(c, http.StatusBadRequest, "prompt is too long")
-		return
-	}
-
-	imageGatewayKey := strings.TrimSpace(h.cfg.APIKey)
-	requestImageKey := strings.TrimSpace(c.GetHeader("X-Image-API-Key"))
-	if requestImageKey == "" {
-		requestImageKey = strings.TrimSpace(req.ImageAPIKey)
-	}
-	if requestImageKey != "" {
-		imageGatewayKey = requestImageKey
-	}
-	if imageGatewayKey == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "image generation is not configured",
-			"code":    "image_config_missing",
-			"message": "服务器还没有配置 IMAGE_API_KEY，也没有在本次请求中提供生图 API Key；因此不会消耗生图额度。",
-		})
 		return
 	}
 

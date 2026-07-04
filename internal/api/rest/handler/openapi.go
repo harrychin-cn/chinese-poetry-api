@@ -318,7 +318,7 @@ paths:
         - Images
       summary: Generate a poetry mood image in the console
       operationId: generatePoetryImage
-      description: Requires X-API-Key. Public clients provide their own Qanlo image key as image_api_key in the request body; the server only proxies that key for this request and does not store it.
+      description: Requires X-API-Key. Public clients provide their own Qanlo image key as image_api_key in the request body or X-Image-API-Key header; the server only proxies that key for this request and does not store it.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -329,7 +329,6 @@ paths:
               type: object
               required:
                 - prompt
-                - image_api_key
               properties:
                 prompt:
                   type: string

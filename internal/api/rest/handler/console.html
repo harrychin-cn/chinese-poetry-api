@@ -137,6 +137,17 @@
     .counter { text-align: right; font-size: 12px; color: #9a8978; margin-top: 3px; }
     .query-policy { margin-top: 8px; color: #8b6b4d; font-size: 12px; }
     .switch-row.compact { margin-top: 10px; padding-top: 10px; }
+
+    .account-form .wide-actions { grid-template-columns: 1fr 1fr; }
+    .work-list { display: grid; gap: 9px; margin-top: 10px; max-height: 220px; overflow: auto; }
+    .work-item { width: 100%; border: 1px solid #eadac5; border-radius: 14px; background: rgba(255,253,247,.72); padding: 10px 12px; text-align: left; }
+    .work-item.active { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+    .work-item b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .work-item .tiny { display: block; margin-top: 3px; }
+    .inline-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .check-pill { display: flex; align-items: center; gap: 8px; border: 1px solid #eadac5; border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,.38); font-weight: 800; color: #5f4d3c; }
+    .check-pill input { width: auto; }
+    .profile-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     @media (max-width: 1050px) {
       body { overflow: auto; }
       .app { display: block; height: auto; }
@@ -194,6 +205,46 @@
         <button class="icon-btn" type="button" id="copyImageKey" title="复制生图 Key">⧉</button>
       </div>
       <p class="soft-note">这个 Key 只用于“生成图片”，仅保存在本机浏览器；搜索诗词仍使用上方 API Key。</p>
+    </section>
+
+    <section class="card account-form" id="accountCard">
+      <div class="card-title">
+        <h2>账号与原创作品库</h2>
+        <span class="status off" id="accountStatus"><i class="dot"></i>待读取</span>
+      </div>
+      <label for="profileName">公开作者名</label>
+      <input id="profileName" placeholder="例如：山窗主人" />
+      <label for="profileHandle">个人页地址</label>
+      <input id="profileHandle" placeholder="例如：mountain-window" />
+      <label for="profileBio">作者简介</label>
+      <textarea id="profileBio" maxlength="500" placeholder="一句话介绍你的创作方向"></textarea>
+      <div class="wide-actions">
+        <button class="btn ghost" id="saveProfile" type="button">保存账号</button>
+        <button class="btn outline" id="openProfile" type="button">打开个人作品页</button>
+      </div>
+      <p class="soft-note">MVP 用 API Key 作为登录凭证；每个 Key 自动绑定一个作者账号，可展示公开作品。</p>
+      <label for="workTitle">作品标题</label>
+      <input id="workTitle" placeholder="给你的诗词曲赋起一个标题" />
+      <div class="form-grid">
+        <div><label for="workType">作品体裁</label><select id="workType"><option value="poem">诗</option><option value="ci">词</option><option value="qu">曲</option><option value="fu">赋</option><option value="modern_poem">现代诗</option><option value="lyric">歌词</option></select></div>
+        <div><label for="workStatusFilter">列表状态</label><select id="workStatusFilter"><option value="all">全部</option><option value="draft">草稿</option><option value="published">已公开</option><option value="review_required">待复核</option></select></div>
+      </div>
+      <label for="workContent">作品正文</label>
+      <textarea id="workContent" maxlength="10000" placeholder="逐行输入作品正文"></textarea>
+      <label for="workDesc">作品说明</label>
+      <input id="workDesc" placeholder="可选：创作背景、题记或说明" />
+      <div class="inline-checks">
+        <label class="check-pill"><input id="workPublish" type="checkbox" checked />发布公开</label>
+        <label class="check-pill"><input id="workOriginal" type="checkbox" checked />原创承诺</label>
+        <label class="check-pill"><input id="workLicense" type="checkbox" checked />接受授权</label>
+        <label class="check-pill"><input id="workUsePrompt" type="checkbox" checked />同步生图提示</label>
+      </div>
+      <div class="wide-actions">
+        <button class="btn primary" id="saveWork" type="button">保存作品</button>
+        <button class="btn ghost" id="newWork" type="button">新建草稿</button>
+      </div>
+      <div class="profile-line"><span class="tiny" id="workEditHint">当前：新建作品</span></div>
+      <div class="work-list" id="workList"></div>
     </section>
 
     <section class="card">
@@ -263,7 +314,7 @@
         <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
       </div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/:id/plagiarism-report /api/v1/public/works/:code /docs /pricing</div>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/public/works/:code /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -448,6 +499,7 @@
       localStorage.setItem(poetryKeyStorage, key);
       toast("Key 已保存到本机");
       refreshStatus();
+      refreshAccountAndWorks();
     } else {
       localStorage.removeItem(poetryKeyStorage);
       setKeyStatus(false, "未配置");
@@ -514,6 +566,184 @@
       $("dailyLimit").textContent = "--";
     }
   }
+
+  function setAccountStatus(on, text) {
+    var el = $("accountStatus");
+    if (!el) return;
+    el.classList.toggle("off", !on);
+    el.innerHTML = '<i class="dot"></i>' + text;
+  }
+  function authHeaders(extra) {
+    return Object.assign({ "X-API-Key": requireKey() }, extra || {});
+  }
+  function profileURL(handle) {
+    return apiURL("/u/" + encodeURIComponent(handle || ""));
+  }
+  function renderAccount(account) {
+    state.account = account || null;
+    if (!account) {
+      setAccountStatus(false, "\u5f85\u8bfb\u53d6");
+      return;
+    }
+    $("profileName").value = account.display_name || "";
+    $("profileHandle").value = account.handle || "";
+    $("profileBio").value = account.bio || "";
+    setAccountStatus(true, "\u5df2\u5c31\u7eea");
+  }
+  async function refreshAccountAndWorks() {
+    if (!apiKey()) {
+      setAccountStatus(false, "\u672a\u914d\u7f6e");
+      return;
+    }
+    try {
+      var accountResp = await fetchJSON("/api/v1/account", { headers: { "X-API-Key": apiKey() } });
+      renderAccount(accountResp.data || accountResp);
+      await loadWorks(false);
+    } catch (e) {
+      setAccountStatus(false, "\u8bfb\u53d6\u5931\u8d25");
+    }
+  }
+  async function saveProfile() {
+    try {
+      var body = {
+        display_name: ($("profileName").value || "").trim(),
+        handle: ($("profileHandle").value || "").trim(),
+        bio: ($("profileBio").value || "").trim()
+      };
+      var json = await fetchJSON("/api/v1/account", {
+        method: "PATCH",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(body)
+      });
+      renderAccount(json.data || json);
+      toast("\u8d26\u53f7\u8d44\u6599\u5df2\u4fdd\u5b58");
+    } catch (e) {
+      toast(e.message || "\u8d26\u53f7\u4fdd\u5b58\u5931\u8d25");
+    }
+  }
+  function openProfilePage() {
+    var handle = ($("profileHandle").value || (state.account && state.account.handle) || "").trim();
+    if (!handle) { toast("\u8bf7\u5148\u4fdd\u5b58\u8d26\u53f7\u8d44\u6599"); return; }
+    window.open(profileURL(handle), "_blank", "noopener");
+  }
+  function clearWorkForm() {
+    state.selectedWork = null;
+    $("workTitle").value = "";
+    $("workType").value = "poem";
+    $("workContent").value = "";
+    $("workDesc").value = "";
+    $("workPublish").checked = true;
+    $("workOriginal").checked = true;
+    $("workLicense").checked = true;
+    $("workUsePrompt").checked = true;
+    $("workEditHint").textContent = "\u5f53\u524d\uff1a\u65b0\u5efa\u4f5c\u54c1";
+    renderWorks(state.works || []);
+  }
+  function fillWorkForm(work) {
+    state.selectedWork = work || null;
+    if (!work) return clearWorkForm();
+    $("workTitle").value = work.title || "";
+    $("workType").value = work.work_type || "poem";
+    $("workContent").value = work.content || "";
+    $("workDesc").value = work.description || "";
+    $("workPublish").checked = work.status === "published";
+    $("workOriginal").checked = !!work.original_commitment;
+    $("workLicense").checked = !!work.license_accepted;
+    $("workEditHint").textContent = "\u5f53\u524d\uff1a\u7f16\u8f91 #" + work.id + " \u00b7 " + (work.status || "draft");
+    renderWorks(state.works || []);
+  }
+  function workPayload() {
+    var imagePrompt = $("workUsePrompt").checked ? ($("promptOut").value || "") : "";
+    return {
+      title: ($("workTitle").value || "").trim(),
+      work_type: $("workType").value || "poem",
+      content: ($("workContent").value || "").trim(),
+      description: ($("workDesc").value || "").trim(),
+      original_commitment: $("workOriginal").checked,
+      license_accepted: $("workLicense").checked,
+      publish: $("workPublish").checked,
+      image_prompt: imagePrompt,
+      change_note: state.selectedWork ? "console update" : "console create"
+    };
+  }
+  async function saveWork() {
+    var payload = workPayload();
+    if (!payload.title || !payload.content) {
+      toast("\u8bf7\u5148\u586b\u5199\u4f5c\u54c1\u6807\u9898\u548c\u6b63\u6587");
+      return;
+    }
+    if (payload.publish && (!payload.original_commitment || !payload.license_accepted)) {
+      toast("\u53d1\u5e03\u516c\u5f00\u4f5c\u54c1\u9700\u8981\u52fe\u9009\u539f\u521b\u627f\u8bfa\u548c\u6388\u6743\u786e\u8ba4");
+      return;
+    }
+    var btn = $("saveWork");
+    var old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = state.selectedWork ? "\u66f4\u65b0\u4e2d..." : "\u4fdd\u5b58\u4e2d...";
+    try {
+      var path = state.selectedWork ? ("/api/v1/works/" + state.selectedWork.id) : "/api/v1/works";
+      var method = state.selectedWork ? "PATCH" : "POST";
+      var json = await fetchJSON(path, { method: method, headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(payload) });
+      var saved = json.data || json;
+      toast(saved.status === "review_required" ? "\u4f5c\u54c1\u5df2\u4fdd\u5b58\uff0c\u56e0\u67e5\u91cd\u98ce\u9669\u8fdb\u5165\u4eba\u5de5\u590d\u6838" : "\u4f5c\u54c1\u5df2\u4fdd\u5b58");
+      await loadWorks(false);
+      var found = (state.works || []).find(function (w) { return String(w.id) === String(saved.id); });
+      fillWorkForm(found || saved);
+    } catch (e) {
+      toast(e.message || "\u4f5c\u54c1\u4fdd\u5b58\u5931\u8d25");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
+  async function loadWorks(showToast) {
+    if (!apiKey()) return;
+    try {
+      var status = $("workStatusFilter").value || "all";
+      var json = await fetchJSON("/api/v1/works?status=" + encodeURIComponent(status) + "&limit=30", { headers: { "X-API-Key": apiKey() } });
+      var data = json.data || json;
+      state.works = data.items || [];
+      renderWorks(state.works);
+      if (showToast) toast("\u4f5c\u54c1\u5217\u8868\u5df2\u5237\u65b0");
+    } catch (e) {
+      $("workList").innerHTML = '<div class="soft-note">\u4f5c\u54c1\u5217\u8868\u8bfb\u53d6\u5931\u8d25\uff1a' + escapeHTML(e.message || "unknown") + '</div>';
+    }
+  }
+  function renderWorks(works) {
+    works = works || [];
+    var box = $("workList");
+    if (!box) return;
+    if (!works.length) {
+      box.innerHTML = '<div class="soft-note">\u8fd8\u6ca1\u6709\u4f5c\u54c1\u3002\u586b\u5199\u4e0a\u65b9\u8868\u5355\u540e\u70b9\u51fb\u201c\u4fdd\u5b58\u4f5c\u54c1\u201d\u3002</div>';
+      return;
+    }
+    box.innerHTML = works.map(function (w) {
+      var active = state.selectedWork && String(state.selectedWork.id) === String(w.id);
+      var publicLink = w.work_code ? ('<a class="tiny" data-action="open" data-id="' + w.id + '" href="' + apiURL('/api/v1/public/works/' + encodeURIComponent(w.work_code)) + '" target="_blank" rel="noopener">\u516c\u5f00 JSON</a>') : '';
+      return '<div class="work-item ' + (active ? 'active' : '') + '" data-id="' + w.id + '"><b>' + escapeHTML(w.title || "\u672a\u547d\u540d\u4f5c\u54c1") + '</b><span class="tiny">' + escapeHTML(w.status || "draft") + ' \u00b7 v' + escapeHTML(w.version || 1) + ' \u00b7 ' + escapeHTML(w.work_code || "\u672a\u53d1\u5e03") + '</span><span class="tiny"><button class="link-btn" data-action="edit" data-id="' + w.id + '" type="button">\u7f16\u8f91</button> <button class="link-btn" data-action="report" data-id="' + w.id + '" type="button">\u67e5\u91cd\u62a5\u544a</button> ' + publicLink + '</span></div>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("[data-action]"), function (el) {
+      el.onclick = function (ev) {
+        ev.preventDefault();
+        var id = el.dataset.id;
+        var action = el.dataset.action;
+        var work = state.works.find(function (w) { return String(w.id) === String(id); });
+        if (action === "edit") fillWorkForm(work);
+        if (action === "report") showWorkReport(id);
+        if (action === "open" && el.href) window.open(el.href, "_blank", "noopener");
+      };
+    });
+  }
+  async function showWorkReport(id) {
+    try {
+      var json = await fetchJSON("/api/v1/works/" + id + "/plagiarism-report", { headers: { "X-API-Key": apiKey() } });
+      var data = json.data || json;
+      toast("\u67e5\u91cd\uff1a" + (data.risk_level || "unknown") + " \u00b7 " + (data.risk_reason || "\u5df2\u751f\u6210\u62a5\u544a"));
+    } catch (e) {
+      toast(e.message || "\u67e5\u91cd\u62a5\u544a\u8bfb\u53d6\u5931\u8d25");
+    }
+  }
+
   function renderPoem(poem) {
     poem = poem || sample;
     state.current = poem;
@@ -837,7 +1067,17 @@
   $("saveImageKey").onclick = function () { saveImageKey(false); };
   $("clearImageKey").onclick = clearImageKey;
   $("imageApiKey").addEventListener("change", function () { saveImageKey(true); });
-  $("query").addEventListener("input", updateCounter);
+  $("saveProfile").onclick = saveProfile;
+  $("openProfile").onclick = openProfilePage;
+  $("saveWork").onclick = saveWork;
+  $("newWork").onclick = clearWorkForm;
+  $("workStatusFilter").onchange = function () { loadWorks(true); };
+  $("query").addEventListener("input", function () {
+    var before = state.activeScenario;
+    updateCounter();
+    updateQueryPolicy();
+    if (before !== state.activeScenario) renderChips();
+  });
   $("searchBtn").onclick = searchPoems;
   $("promptBtn").onclick = generateImage;
   $("copyPoem").onclick = function () { copyText($("poemTitle").textContent + "\n" + $("poemAuthor").textContent + "\n" + $("poemContent").textContent, "诗词已复制"); };
@@ -859,7 +1099,8 @@
   updateCounter();
   renderPoem(sample);
   renderRecs([]);
-  if (apiKey()) refreshStatus();
+  clearWorkForm();
+  if (apiKey()) { refreshStatus(); refreshAccountAndWorks(); }
 })();
 </script>
 </body>

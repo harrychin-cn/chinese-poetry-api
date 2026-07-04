@@ -27,6 +27,7 @@ var (
 // APIKey is a persisted commercial API key. KeyHash is never exposed.
 type APIKey struct {
 	ID         int64      `json:"id"`
+	AccountID  *int64     `json:"account_id,omitempty"`
 	KeyHash    string     `json:"-"`
 	KeyPrefix  string     `json:"key_prefix"`
 	Name       string     `json:"name"`
@@ -106,7 +107,17 @@ func (r *Repository) CreateAPIKey(params CreateAPIKeyParams) (*APIKey, string, e
 		UpdatedAt:  &now,
 	}
 
-	if err := r.db.Table("api_keys").Create(key).Error; err != nil {
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("api_keys").Create(key).Error; err != nil {
+			return err
+		}
+		account, err := createDefaultUserAccountTx(tx, key.ID, key.Name)
+		if err != nil {
+			return err
+		}
+		key.AccountID = &account.ID
+		return tx.Table("api_keys").Where("id = ?", key.ID).Update("account_id", account.ID).Error
+	}); err != nil {
 		return nil, "", err
 	}
 
