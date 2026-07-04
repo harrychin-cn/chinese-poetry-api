@@ -37,6 +37,9 @@ POST /api/v1/billing/qanlo/provision
 POST /api/v1/billing/qanlo/recharge-session
 GET /api/v1/billing/qanlo/callback
 GET /api/v1/billing/status
+GET /api/v1/wallet
+GET /api/v1/wallet/transactions
+POST /api/v1/wallet/top-up
 ```
 
 其中 `POST /api/v1/keys` 仅保留路由兼容，公开环境已禁止自助创建 API Key，会返回 403，避免未充值用户直接生成可用 Key。Key 必须由管理员接口 `POST /api/v1/admin/api-keys` 或受信任的 Qanlo 开通链路发放；返回里的完整密钥只出现一次。其余客户侧状态、充值和用量接口需要 `X-API-Key`。
@@ -65,6 +68,9 @@ GET /api/v1/poems/search/fulltext
 GET /api/v1/knowledge/recall
 POST /api/v1/knowledge/batch
 POST /api/v1/images/generate
+GET /api/v1/wallet
+GET /api/v1/wallet/transactions
+POST /api/v1/wallet/top-up
 GET /api/v1/usage/daily
 GET /api/v1/usage/endpoints
 GET /api/v1/usage/queries
@@ -87,6 +93,8 @@ GET /api/v1/works/:id/music-jobs
 POST /api/v1/works/:id/images/generate
 POST /api/v1/works/:id/audio/generate
 POST /api/v1/works/:id/music/generate
+POST /api/v1/works/:id/tip
+GET /api/v1/works/:id/tips
 ```
 
 管理员后台接口需要 `X-Admin-Token`：
@@ -404,6 +412,33 @@ AUDIO_CREDIT_COST=1
 AUDIO_MUSIC_CREDIT_COST=0
 AUDIO_INITIAL_CREDITS=20
 ```
+
+## Wallet / credit ledger / tips MVP
+
+Stage 6 MVP adds a local points wallet for each API key. The wallet starts with the same free credit pool used by image/audio generation, records every grant/spend/refund/tip in `credit_transactions`, and supports idempotent manual top-up plus work tipping. The top-up endpoint is an MVP/manual settlement bridge; production payment confirmation can later call the same repository flow from Qanlo callbacks.
+
+```bash
+curl "http://localhost:1279/api/v1/wallet" \
+  -H "X-API-Key: cp_live_xxx"
+
+curl "http://localhost:1279/api/v1/wallet/transactions?limit=20" \
+  -H "X-API-Key: cp_live_xxx"
+
+curl -X POST "http://localhost:1279/api/v1/wallet/top-up" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"amount":50,"reason":"manual_top_up","idempotency_key":"topup-2026-07-04-001"}'
+
+curl -X POST "http://localhost:1279/api/v1/works/1/tip" \
+  -H "X-API-Key: cp_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"amount":5,"message":"Thanks for this work","idempotency_key":"tip-1"}'
+
+curl "http://localhost:1279/api/v1/works/1/tips" \
+  -H "X-API-Key: cp_live_xxx"
+```
+
+Tip rules: users can tip only public published works, cannot tip their own works, and receive `402 insufficient wallet credits` with `recharge_endpoint=/api/v1/wallet/top-up` when the sender wallet is short. Reusing the same idempotency key returns the existing successful transfer without double-spending.
 
 ## 查看 API Key 与今日用量
 

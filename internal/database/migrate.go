@@ -711,6 +711,24 @@ func (db *DB) migrateOriginalWorkTables() error {
 		return err
 	}
 
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_tips (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		work_id INTEGER NOT NULL,
+		from_api_key_id INTEGER NOT NULL,
+		to_api_key_id INTEGER NOT NULL,
+		amount INTEGER NOT NULL,
+		message TEXT,
+		idempotency_key TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'succeeded',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (work_id) REFERENCES original_works(id),
+		FOREIGN KEY (from_api_key_id) REFERENCES api_keys(id),
+		FOREIGN KEY (to_api_key_id) REFERENCES api_keys(id),
+		UNIQUE(from_api_key_id, idempotency_key)
+	)`).Error; err != nil {
+		return err
+	}
+
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS work_fingerprints (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		work_id INTEGER NOT NULL,
@@ -821,6 +839,9 @@ func (db *DB) migrateOriginalWorkTables() error {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_credit_wallets_api_key ON credit_wallets(api_key_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_credit_transactions_api_key ON credit_transactions(api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_credit_transactions_work ON credit_transactions(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_tips_work ON work_tips(work_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_tips_from_key ON work_tips(from_api_key_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_work_tips_to_key ON work_tips(to_api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_work ON image_generation_jobs(work_id, status, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_image_generation_jobs_api_key ON image_generation_jobs(api_key_id, created_at)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_audio_generation_jobs_work ON audio_generation_jobs(work_id, status, created_at)`)

@@ -32,6 +32,7 @@ tags:
   - name: Images
   - name: Client Keys
   - name: Billing
+  - name: Wallet
   - name: Usage
   - name: Feedback
   - name: Works
@@ -490,6 +491,54 @@ paths:
           $ref: "#/components/responses/OK"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/wallet:
+    get:
+      tags:
+        - Wallet
+      summary: Get current credit wallet and recent ledger rows
+      operationId: getWallet
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/wallet/transactions:
+    get:
+      tags:
+        - Wallet
+      summary: List current API key credit ledger rows
+      operationId: listWalletTransactions
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/wallet/top-up:
+    post:
+      tags:
+        - Wallet
+      summary: Manually grant credits to the current wallet
+      operationId: topUpWallet
+      description: Stage-6 MVP/manual settlement bridge. Use idempotency_key to avoid duplicate grants.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/usage/daily:
     get:
       tags:
@@ -829,6 +878,46 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "402":
           description: Music credits are insufficient
+  /api/v1/works/{id}/tip:
+    post:
+      tags:
+        - Wallet
+        - Works
+      summary: Tip a public work author with wallet credits
+      operationId: tipOriginalWork
+      description: Transfers points from the current API key wallet to the public published work author. Idempotency key prevents double spending.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        $ref: "#/components/requestBodies/JSONBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "402":
+          description: Wallet credits are insufficient
+        "404":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/works/{id}/tips:
+    get:
+      tags:
+        - Wallet
+        - Works
+      summary: List tip summary and recent tips for a visible work
+      operationId: listOriginalWorkTips
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "404":
+          $ref: "#/components/responses/BadRequest"
   /api/v1/public/works/{code}:
     get:
       tags:

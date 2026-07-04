@@ -339,7 +339,35 @@
         <a class="link-btn" href="docs">使用帮助文档<br><span class="tiny">快速上手</span></a>
       </div>
     </section>
-    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/reverse-create /api/v1/works/reverse-jobs /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /docs /pricing</div>
+
+
+    <section class="card" id="walletCard">
+      <div class="card-title">
+        <h2>Wallet / Credits</h2>
+        <span class="status off" id="walletStatus"><i class="dot"></i>Not loaded</span>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span class="tiny">Balance</span><b id="walletBalance">--</b></div>
+        <div class="metric"><span class="tiny">Spent</span><b id="walletSpent">--</b></div>
+      </div>
+      <div class="wide-actions">
+        <button class="btn ghost" id="refreshWallet" type="button">Refresh wallet</button>
+        <button class="btn outline" id="topUpWallet" type="button">Top up</button>
+      </div>
+      <label for="topUpAmount">Top-up amount</label>
+      <input id="topUpAmount" type="number" min="1" max="100000" value="20" />
+      <label for="tipAmount">Tip selected public work</label>
+      <div class="form-grid">
+        <input id="tipAmount" type="number" min="1" max="10000" value="5" />
+        <input id="tipMessage" maxlength="300" placeholder="Optional tip message" />
+      </div>
+      <div class="wide-actions">
+        <button class="btn outline" id="tipSelectedWork" type="button">Tip selected work</button>
+        <button class="btn outline" id="loadWorkTips" type="button">Load work tips</button>
+      </div>
+      <div class="soft-note" id="walletTransactions">Wallet ledger appears here after refresh.</div>
+    </section>
+    <div class="hidden" aria-hidden="true">POST /api/v1/keys POST /api/v1/images/generate /api/v1/billing/status /api/v1/knowledge/recall /api/v1/feedback /api/v1/works /api/v1/works/reverse-create /api/v1/works/reverse-jobs /api/v1/account /api/v1/public/users/:handle /u/:handle /api/v1/works/:id/plagiarism-report /api/v1/works/:id/images/generate /api/v1/works/:id/audio/generate /api/v1/works/:id/music/generate /api/v1/works/:id/audio-jobs /api/v1/works/:id/music-jobs /api/v1/works/:id/media-assets /api/v1/works/:id/image-jobs /api/v1/public/works/:code /api/v1/wallet /api/v1/wallet/transactions /api/v1/wallet/top-up /api/v1/works/:id/tip /api/v1/works/:id/tips /docs /pricing</div>
   </aside>
 
   <main class="main">
@@ -524,6 +552,7 @@
       localStorage.setItem(poetryKeyStorage, key);
       toast("Key 已保存到本机");
       refreshStatus();
+      refreshWallet(false);
       refreshAccountAndWorks();
     } else {
       localStorage.removeItem(poetryKeyStorage);
@@ -1235,6 +1264,120 @@
   }
 
 
+
+  function setWalletStatus(on, text) {
+    var el = $("walletStatus");
+    if (!el) return;
+    el.classList.toggle("off", !on);
+    el.innerHTML = '<i class="dot"></i>' + escapeHTML(text || "Wallet");
+  }
+  function renderWallet(payload) {
+    var data = payload && payload.data ? payload.data : (payload || {});
+    var wallet = data.wallet || data;
+    if (!wallet || wallet.balance == null) {
+      setWalletStatus(false, "Not loaded");
+      return;
+    }
+    state.wallet = wallet;
+    if ($("walletBalance")) $("walletBalance").textContent = wallet.balance == null ? "--" : wallet.balance;
+    if ($("walletSpent")) $("walletSpent").textContent = wallet.total_spent == null ? "0" : wallet.total_spent;
+    setWalletStatus(true, "Ready");
+    var txs = data.transactions || data.items || [];
+    renderWalletTransactions(txs);
+  }
+  function renderWalletTransactions(txs) {
+    var box = $("walletTransactions");
+    if (!box) return;
+    txs = txs || [];
+    if (!txs.length) {
+      box.innerHTML = "No ledger rows yet.";
+      return;
+    }
+    box.innerHTML = txs.slice(0, 8).map(function (tx) {
+      var amount = tx.amount == null ? "0" : tx.amount;
+      var reason = tx.reason || tx.transaction_type || "credit";
+      var balance = tx.balance_after == null ? "--" : tx.balance_after;
+      return '<div class="tiny"><b>' + escapeHTML(amount) + '</b> ? ' + escapeHTML(reason) + ' ? balance ' + escapeHTML(balance) + '</div>';
+    }).join("");
+  }
+  async function refreshWallet(showToast) {
+    if (!apiKey()) {
+      setWalletStatus(false, "No key");
+      return;
+    }
+    try {
+      var json = await fetchJSON("/api/v1/wallet?limit=8", { headers: { "X-API-Key": apiKey() } });
+      renderWallet(json);
+      if (showToast) toast("Wallet refreshed");
+    } catch (e) {
+      setWalletStatus(false, "Load failed");
+      if (showToast) toast(e.message || "Wallet load failed");
+    }
+  }
+  async function topUpWallet() {
+    var amount = Number((document.getElementById("topUpAmount") || {}).value || 0);
+    if (!amount || amount < 1) { toast("Enter a top-up amount"); return; }
+    var btn = $("topUpWallet");
+    var old = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Top-up..."; }
+    try {
+      var json = await fetchJSON("/api/v1/wallet/top-up", {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ amount: amount, reason: "console_top_up", idempotency_key: "console-top-up-" + Date.now() })
+      });
+      renderWallet(json);
+      await refreshWallet(false);
+      toast("Wallet topped up");
+    } catch (e) {
+      toast(e.message || "Wallet top-up failed");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
+  }
+  async function tipSelectedWork() {
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
+    if (!selected) { toast("Select a public work first"); return; }
+    var amount = Number((document.getElementById("tipAmount") || {}).value || 0);
+    if (!amount || amount < 1) { toast("Enter a tip amount"); return; }
+    var message = ((document.getElementById("tipMessage") || {}).value || "").trim();
+    var btn = $("tipSelectedWork");
+    var old = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Tipping..."; }
+    try {
+      await fetchJSON("/api/v1/works/" + selected.id + "/tip", {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ amount: amount, message: message, idempotency_key: "console-tip-" + selected.id + "-" + Date.now() })
+      });
+      await refreshWallet(false);
+      await loadSelectedWorkTips(false);
+      toast("Tip sent");
+    } catch (e) {
+      toast(e.message || "Tip failed");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
+  }
+  async function loadSelectedWorkTips(showToast) {
+    var selected = state.selectedWork && state.selectedWork.id ? state.selectedWork : null;
+    if (!selected) { toast("Select a work first"); return; }
+    try {
+      var json = await fetchJSON("/api/v1/works/" + selected.id + "/tips?limit=5", { headers: { "X-API-Key": apiKey() } });
+      var data = json.data || json;
+      var summary = data.summary || {};
+      var items = data.items || [];
+      var box = $("walletTransactions");
+      if (box) {
+        box.innerHTML = '<div class="tiny"><b>Work tips:</b> ' + escapeHTML(summary.tip_count || 0) + ' tips ? total ' + escapeHTML(summary.total_amount || 0) + '</div>' +
+          items.map(function (tip) { return '<div class="tiny">+' + escapeHTML(tip.amount || 0) + ' ? ' + escapeHTML(tip.message || 'tip') + '</div>'; }).join("");
+      }
+      if (showToast) toast("Work tips loaded");
+    } catch (e) {
+      if (showToast) toast(e.message || "Work tips load failed");
+    }
+  }
+
   async function bindQanlo() {
     var key = requireKey();
     try {
@@ -1319,6 +1462,10 @@
   $("clearResult").onclick = function () { renderPoem(sample); $("queryStatus").textContent = "状态：待搜索"; toast("结果已重置为示例"); };
   $("copyPrompt").onclick = function () { copyText($("promptOut").value, "提示词已复制"); };
   $("downloadImage").onclick = downloadImage;
+  if ($("refreshWallet")) $("refreshWallet").onclick = function () { refreshWallet(true); };
+  if ($("topUpWallet")) $("topUpWallet").onclick = topUpWallet;
+  if ($("tipSelectedWork")) $("tipSelectedWork").onclick = tipSelectedWork;
+  if ($("loadWorkTips")) $("loadWorkTips").onclick = function () { loadSelectedWorkTips(true); };
   $("bindQanlo").onclick = bindQanlo;
   $("rechargeQanlo").onclick = rechargeQanlo;
   $("shuffleRecs").onclick = function () { renderRecs(state.poems.slice().reverse()); toast("已换一批"); };
@@ -1335,7 +1482,7 @@
   renderPoem(sample);
   renderRecs([]);
   clearWorkForm();
-  if (apiKey()) { refreshStatus(); refreshAccountAndWorks(); }
+  if (apiKey()) { refreshStatus(); refreshWallet(false); refreshAccountAndWorks(); }
 })();
 </script>
 </body>
