@@ -248,6 +248,139 @@ func TestPWAAssetsRender(t *testing.T) {
 	}
 }
 
+func TestBuiltInProductAssetsHonorForwardedPrefix(t *testing.T) {
+	router := setupRouterContractTestRouter(t)
+
+	cases := []struct {
+		path     string
+		contains []string
+	}{
+		{
+			path: "/",
+			contains: []string{
+				`href="/poetry-api/"`,
+				`href="/poetry-api/console"`,
+				`href="/poetry-api/docs"`,
+				`href="/poetry-api/pricing"`,
+				`href="/poetry-api/manifest.json"`,
+				`register("/poetry-api/service-worker.js")`,
+			},
+		},
+		{
+			path: "/console",
+			contains: []string{
+				`href="/poetry-api/"`,
+				`href="/poetry-api/console#works"`,
+				`href="/poetry-api/docs"`,
+				`fetchJSON("/poetry-api/api/v1/poems/search`,
+				`fetchJSON("/poetry-api/api/v1/images/generate`,
+				`register("/poetry-api/service-worker.js")`,
+			},
+		},
+		{
+			path: "/docs",
+			contains: []string{
+				`href="/poetry-api/console"`,
+				`href="/poetry-api/pricing"`,
+				`href="/poetry-api/openapi.yaml"`,
+				`<code>/poetry-api/api/v1</code>`,
+			},
+		},
+		{
+			path: "/pricing",
+			contains: []string{
+				`href="/poetry-api/console"`,
+				`href="/poetry-api/docs"`,
+			},
+		},
+		{
+			path: "/library",
+			contains: []string{
+				`href="/poetry-api/u/`,
+				`fetch("/poetry-api/api/v1/public/works?`,
+				`fetch("/poetry-api/api/v1/public/rankings/works?`,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Header.Set("X-Forwarded-Prefix", "/poetry-api/")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			body := w.Body.String()
+			for _, expected := range tc.contains {
+				require.Contains(t, body, expected)
+			}
+			require.NotContains(t, body, `"/poetry-api//`)
+		})
+	}
+}
+
+func TestPWAAndOpenAPIHonorForwardedPrefix(t *testing.T) {
+	router := setupRouterContractTestRouter(t)
+
+	cases := []struct {
+		path     string
+		contains []string
+	}{
+		{
+			path: "/manifest.json",
+			contains: []string{
+				`"start_url": "/poetry-api/console"`,
+				`"scope": "/poetry-api/"`,
+				`"src": "/poetry-api/pwa-icon.svg"`,
+			},
+		},
+		{
+			path: "/service-worker.js",
+			contains: []string{
+				`CORE_ASSETS = ["/poetry-api/", "/poetry-api/home", "/poetry-api/console"`,
+				`caches.match("/poetry-api/console")`,
+			},
+		},
+		{
+			path: "/openapi.yaml",
+			contains: []string{
+				`- url: /poetry-api`,
+				`description: Current deployment base path`,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Header.Set("X-Forwarded-Prefix", "/poetry-api")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			body := w.Body.String()
+			for _, expected := range tc.contains {
+				require.Contains(t, body, expected)
+			}
+		})
+	}
+}
+
+func TestBuiltInProductAssetsRejectInvalidForwardedPrefix(t *testing.T) {
+	router := setupRouterContractTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/console", nil)
+	maliciousPrefix := `/poetry-api\"><script>alert(1)</script>`
+	req.Header.Set("X-Forwarded-Prefix", maliciousPrefix)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotContains(t, w.Body.String(), maliciousPrefix)
+	require.Contains(t, w.Body.String(), `href="/console"`)
+}
+
 func TestConsolePlaceholderImageRouteRendersPaintingAsset(t *testing.T) {
 	router := setupRouterContractTestRouter(t)
 

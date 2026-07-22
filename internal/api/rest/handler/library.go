@@ -289,7 +289,7 @@ func libraryLicenseNotice(lang string) string {
 
 // LibraryPage renders the public global works library shell.
 func LibraryPage(c *gin.Context) {
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(libraryPageHTML))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", renderProductHTML(c, libraryPageHTML))
 }
 
 const libraryPageHTML = `<!doctype html>
@@ -330,7 +330,9 @@ const libraryPageHTML = `<!doctype html>
     function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
     function lines(content){return String(content||"").split(/\n+/).filter(Boolean).slice(0,8).join("\n")}
     function qs(){var p=new URLSearchParams();p.set("limit","30");p.set("sort",$("sort").value);p.set("lang",$("lang").value);if($("q").value.trim())p.set("q",$("q").value.trim());return p.toString()}
-    function item(w){var a=w.author||{}, cert=w.certificate?'<a class="btn" href="'+esc(w.certificate.public_url)+'">证书</a>':"";return '<article class="work"><p class="tiny">'+esc((w.localized&&w.localized.work_type_label)||w.work_type)+' · '+esc(a.display_name||a.handle||"作者")+' · '+esc(w.work_code||"")+'</p><h2>'+esc(w.title||"未命名作品")+'</h2><div class="content">'+esc(lines(w.content||""))+'</div><p class="tiny">'+esc(w.description||"")+'</p><div class="actions"><a class="btn" href="/u/'+encodeURIComponent(a.handle||"")+'">作者主页</a><a class="btn" href="'+esc(w.public_url||"#")+'">JSON</a>'+cert+'</div></article>'}
+    function base(){var p=location.pathname||"/";var m=p.match(/^(.*)\/library\/?$/);return m?(m[1]||""):""}
+    function external(path){return typeof path==="string"&&path.charAt(0)==="/"?base()+path:path}
+    function item(w){var a=w.author||{}, cert=w.certificate?'<a class="btn" href="'+esc(external(w.certificate.public_url))+'">证书</a>':"";return '<article class="work"><p class="tiny">'+esc((w.localized&&w.localized.work_type_label)||w.work_type)+' · '+esc(a.display_name||a.handle||"作者")+' · '+esc(w.work_code||"")+'</p><h2>'+esc(w.title||"未命名作品")+'</h2><div class="content">'+esc(lines(w.content||""))+'</div><p class="tiny">'+esc(w.description||"")+'</p><div class="actions"><a class="btn" href="/u/'+encodeURIComponent(a.handle||"")+'">作者主页</a><a class="btn" href="'+esc(external(w.public_url||"#"))+'">JSON</a>'+cert+'</div></article>'}
     function render(json){var data=json.data||json, meta=data.locale||{};$("title").textContent=meta.title||"全球原创作品库";$("desc").textContent=meta.description||"";var items=data.items||[];$("works").innerHTML=items.length?items.map(item).join(""):'<article class="work">暂无公开作品。</article>'}
     function renderRank(json){var data=json.data||json, items=data.items||[];$("rankings").innerHTML=items.map(function(w,i){return '<div class="rank"><span class="badge">'+(i+1)+'</span><div><b>'+esc(w.title||"作品")+'</b><p class="tiny">'+esc(((w.author||{}).display_name)||"作者")+' · '+esc(((w.tip_summary||{}).total_amount)||0)+' credits</p></div></div>'}).join("")||'<p class="tiny">暂无榜单。</p>'}
     function load(){fetch("/api/v1/public/works?"+qs()).then(function(r){return r.json()}).then(render);fetch("/api/v1/public/rankings/works?metric=tips&limit=10&lang="+encodeURIComponent($("lang").value)).then(function(r){return r.json()}).then(renderRank)}

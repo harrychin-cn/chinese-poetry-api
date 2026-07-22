@@ -8,7 +8,7 @@ import (
 
 // OpenAPIYAML returns the built-in OpenAPI 3.0 specification for API clients and docs tools.
 func OpenAPIYAML(c *gin.Context) {
-	c.Data(http.StatusOK, "application/yaml; charset=utf-8", []byte(openAPIYAML))
+	c.Data(http.StatusOK, "application/yaml; charset=utf-8", renderProductContent(c, openAPIYAML))
 }
 
 const openAPIYAML = `openapi: 3.0.3
@@ -20,6 +20,8 @@ info:
     AI knowledge recall, QanloAPI billing, usage analytics, feedback, abuse control,
     originality plagiarism review, and AI data-enrichment review operations.
 servers:
+  - url: __POETRY_DEPLOYMENT_BASE_PATH__
+    description: Current deployment base path
   - url: http://localhost:1279
     description: Local development server
   - url: https://your-domain.com

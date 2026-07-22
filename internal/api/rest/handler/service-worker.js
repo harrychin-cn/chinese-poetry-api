@@ -1,4 +1,4 @@
-const CACHE_NAME = "poetry-console-v2";
+const CACHE_NAME = "poetry-console-v3";
 const CORE_ASSETS = ["/", "/home", "/console", "/docs", "/pricing", "/manifest.json", "/pwa-icon.svg", "/console-placeholder-bg.png"];
 
 self.addEventListener("install", (event) => {
