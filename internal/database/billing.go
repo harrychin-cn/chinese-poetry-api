@@ -17,21 +17,22 @@ var (
 )
 
 // QanloBinding stores the Qanlo Agent Key binding mirror for one local API key.
-// The raw Qanlo key is never stored; only hash and prefix/masked values are kept.
+// The raw Qanlo key is never stored; an operator-encrypted value permits gateway calls.
 type QanloBinding struct {
-	ID                int64      `json:"id"`
-	APIKeyID          int64      `json:"api_key_id"`
-	Status            string     `json:"status"`
-	ExternalUserID    string     `json:"external_user_id"`
-	ExternalDeviceID  string     `json:"external_device_id"`
-	QanloKeyHash      string     `json:"-"`
-	QanloKeyPrefix    string     `json:"qanlo_key_prefix"`
-	QanloBaseURL      string     `json:"qanlo_base_url"`
-	CallbackState     string     `json:"callback_state,omitempty"`
-	CallbackExpiresAt *time.Time `json:"callback_expires_at,omitempty"`
-	LastSyncedAt      *time.Time `json:"last_synced_at,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID                 int64      `json:"id"`
+	APIKeyID           int64      `json:"api_key_id"`
+	Status             string     `json:"status"`
+	ExternalUserID     string     `json:"external_user_id"`
+	ExternalDeviceID   string     `json:"external_device_id"`
+	QanloKeyHash       string     `json:"-"`
+	QanloKeyCiphertext string     `json:"-"`
+	QanloKeyPrefix     string     `json:"qanlo_key_prefix"`
+	QanloBaseURL       string     `json:"qanlo_base_url"`
+	CallbackState      string     `json:"callback_state,omitempty"`
+	CallbackExpiresAt  *time.Time `json:"callback_expires_at,omitempty"`
+	LastSyncedAt       *time.Time `json:"last_synced_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // QanloBindingSessionParams is used when starting a provision/recharge browser flow.
@@ -45,11 +46,13 @@ type QanloBindingSessionParams struct {
 
 // QanloCallbackParams is the sanitized callback data received from Qanlo.
 type QanloCallbackParams struct {
-	CallbackState string
-	RawQanloKey   string
-	QanloBaseURL  string
-	RawQuery      string
-	EventType     string
+	CallbackState      string
+	QanloKeyHash       string
+	QanloKeyPrefix     string
+	QanloKeyCiphertext string
+	QanloBaseURL       string
+	RawQuery           string
+	EventType          string
 }
 
 // GetQanloBindingByAPIKeyID returns a Qanlo binding by local API key id.
@@ -128,8 +131,7 @@ func (r *Repository) UpsertQanloBindingSession(params QanloBindingSessionParams)
 // SaveQanloCallback validates a callback state and stores the Qanlo binding mirror.
 func (r *Repository) SaveQanloCallback(params QanloCallbackParams) (*QanloBinding, error) {
 	state := strings.TrimSpace(params.CallbackState)
-	rawKey := strings.TrimSpace(params.RawQanloKey)
-	if state == "" || rawKey == "" {
+	if state == "" || strings.TrimSpace(params.QanloKeyHash) == "" || strings.TrimSpace(params.QanloKeyCiphertext) == "" {
 		return nil, ErrInvalidQanloState
 	}
 
@@ -145,18 +147,19 @@ func (r *Repository) SaveQanloCallback(params QanloCallbackParams) (*QanloBindin
 		return nil, err
 	}
 
-	keyPrefix := MaskSecret(rawKey)
+	keyPrefix := strings.TrimSpace(params.QanloKeyPrefix)
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec(`
 			UPDATE api_key_qanlo_bindings
 			SET status = 'linked',
 				qanlo_key_hash = ?,
+				qanlo_key_ciphertext = ?,
 				qanlo_key_prefix = ?,
 				qanlo_base_url = ?,
 				last_synced_at = ?,
 				updated_at = ?
 			WHERE id = ?
-		`, HashAPIKey(rawKey), keyPrefix, strings.TrimSpace(params.QanloBaseURL), now, now, binding.ID).Error; err != nil {
+		`, strings.TrimSpace(params.QanloKeyHash), strings.TrimSpace(params.QanloKeyCiphertext), keyPrefix, strings.TrimSpace(params.QanloBaseURL), now, now, binding.ID).Error; err != nil {
 			return err
 		}
 

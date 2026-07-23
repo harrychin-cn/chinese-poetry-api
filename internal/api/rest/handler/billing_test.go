@@ -20,13 +20,14 @@ import (
 
 func setupBillingTestRouter(t *testing.T) (*gin.Engine, *database.Repository) {
 	return setupBillingTestRouterWithQanloConfig(t, config.QanloConfig{
-		AgentBaseURL:  "https://qanlo.com",
-		OpenAIBaseURL: "https://qanlo.com/v1",
-		RechargeURL:   "https://qanlo.com/purchase?compact=1&from=agent_key&tab=recharge&ui_mode=embedded",
-		AgentAppID:    "agent_test",
-		AgentName:     "chinese-poetry-api",
-		AgentModel:    "deepseek-v4-flash",
-		ReturnURL:     "http://localhost:1279/api/v1/billing/qanlo/callback",
+		AgentBaseURL:     "https://qanlo.com",
+		OpenAIBaseURL:    "https://qanlo.com/v1",
+		RechargeURL:      "https://qanlo.com/purchase?compact=1&from=agent_key&tab=recharge&ui_mode=embedded",
+		AgentAppID:       "agent_test",
+		AgentName:        "chinese-poetry-api",
+		AgentModel:       "deepseek-v4-flash",
+		ReturnURL:        "http://localhost:1279/api/v1/billing/qanlo/callback",
+		KeyEncryptionKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 	})
 }
 
@@ -103,12 +104,13 @@ func TestBillingQanloFlow(t *testing.T) {
 
 func TestBillingProvisionWithoutQanloAppIDReturnsActionableFallback(t *testing.T) {
 	router, repo := setupBillingTestRouterWithQanloConfig(t, config.QanloConfig{
-		AgentBaseURL:  "https://qanlo.com",
-		OpenAIBaseURL: "https://qanlo.com/v1",
-		RechargeURL:   "https://qanlo.com/purchase?compact=1&from=agent_key&tab=recharge&ui_mode=embedded",
-		AgentName:     "chinese-poetry-api",
-		AgentModel:    "deepseek-v4-flash",
-		ReturnURL:     "http://localhost:1279/api/v1/billing/qanlo/callback",
+		AgentBaseURL:     "https://qanlo.com",
+		OpenAIBaseURL:    "https://qanlo.com/v1",
+		RechargeURL:      "https://qanlo.com/purchase?compact=1&from=agent_key&tab=recharge&ui_mode=embedded",
+		AgentName:        "chinese-poetry-api",
+		AgentModel:       "deepseek-v4-flash",
+		ReturnURL:        "http://localhost:1279/api/v1/billing/qanlo/callback",
+		KeyEncryptionKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 	})
 	_, rawKey, err := repo.CreateAPIKey(database.CreateAPIKeyParams{Name: "local customer"})
 	require.NoError(t, err)

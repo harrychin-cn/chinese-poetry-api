@@ -70,14 +70,15 @@ type APIAuthConfig struct {
 
 // QanloConfig holds Qanlo Agent Key and compact recharge settings.
 type QanloConfig struct {
-	AgentBaseURL   string `mapstructure:"agent_base_url"`
-	OpenAIBaseURL  string `mapstructure:"openai_base_url"`
-	RechargeURL    string `mapstructure:"recharge_url"`
-	AgentAppID     string `mapstructure:"agent_app_id"`
-	AgentName      string `mapstructure:"agent_name"`
-	AgentModel     string `mapstructure:"agent_model"`
-	ReturnURL      string `mapstructure:"return_url"`
-	CallbackSecret string `mapstructure:"callback_secret"`
+	AgentBaseURL     string `mapstructure:"agent_base_url"`
+	OpenAIBaseURL    string `mapstructure:"openai_base_url"`
+	RechargeURL      string `mapstructure:"recharge_url"`
+	AgentAppID       string `mapstructure:"agent_app_id"`
+	AgentName        string `mapstructure:"agent_name"`
+	AgentModel       string `mapstructure:"agent_model"`
+	ReturnURL        string `mapstructure:"return_url"`
+	CallbackSecret   string `mapstructure:"callback_secret"`
+	KeyEncryptionKey string `mapstructure:"key_encryption_key"`
 }
 
 // ImageConfig holds image generation gateway defaults. Users provide the image
@@ -316,6 +317,9 @@ func bindEnvVars(v *viper.Viper) {
 	}
 	if secret := os.Getenv("QANLO_CALLBACK_SECRET"); secret != "" {
 		v.Set("qanlo.callback_secret", secret)
+	}
+	if key := os.Getenv("QANLO_KEY_ENCRYPTION_KEY"); key != "" {
+		v.Set("qanlo.key_encryption_key", key)
 	}
 
 	// Optional image generation gateway defaults. Users paste their own Qanlo

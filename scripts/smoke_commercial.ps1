@@ -394,8 +394,8 @@ $consolePage = Invoke-SmokeTextRequest -Method GET -Path "/console" -Step "conso
     "打开就能搜诗词",
     "诗词卡片",
     "/api/v1/public/works",
-    "本页不会自动创建免费 Key",
-    "充值与绑定",
+    "创建 Key",
+    "充值",
     "生图 Key 管理",
     "意境图区",
     "图片 Prompt 区",
@@ -409,7 +409,7 @@ $pricingPage = Invoke-SmokeTextRequest -Method GET -Path "/pricing" -Step "prici
     "AI 诗词知识库 API 价格套餐",
     "QanloAPI",
     "进入控制台",
-    "公开控制台不会自动创建免费 Key",
+    "创建有每日初始额度的 Key",
     "/api/v1/billing/qanlo/recharge-session"
 )
 Write-Host ("      docs bytes={0}, openapi bytes={1}, console bytes={2}, pricing bytes={3}" -f $docsPage.Content.Length, $openAPI.Content.Length, $consolePage.Content.Length, $pricingPage.Content.Length)
@@ -417,17 +417,14 @@ Write-Host ("      docs bytes={0}, openapi bytes={1}, console bytes={2}, pricing
 $keyName = "commercial-smoke-" + (Get-Date -Format "yyyyMMdd-HHmmss")
 $createKeyBody = [ordered]@{
     name  = $keyName
-    tier  = "trial"
     notes = "local commercial smoke only; no external payment"
 }
-$publicCreate = Invoke-SmokeRequest -Method POST -Path "/api/v1/keys" -Step "public create key disabled" -Body $createKeyBody -ExpectedStatus @(403)
-if ($publicCreate.Json.error -notlike "*public api key creation is disabled*") {
-    throw "[public create key disabled] expected disabled message but got: $($publicCreate.Json.error)"
-}
-Write-Host "      public key self-creation is disabled."
+$publicCreate = Invoke-SmokeRequest -Method POST -Path "/api/v1/keys" -Step "public create key" -Body $createKeyBody -ExpectedStatus @(201) -SensitiveResponse
+Assert-Field -Step "public create key" -Value $publicCreate.Json.data.api_key -Field "data.api_key"
+Write-Host ("      public key created: prefix={0}" -f $publicCreate.Json.data.key_prefix)
 
 if ([string]::IsNullOrWhiteSpace($AdminToken)) {
-    throw "AdminToken is required for commercial smoke now that public API key creation is disabled."
+    throw "AdminToken is required for the administrative commercial smoke checks."
 }
 
 $adminHeaders = @{ "X-Admin-Token" = $AdminToken }

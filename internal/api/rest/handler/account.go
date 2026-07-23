@@ -162,7 +162,7 @@ func formatPublicUserAccount(account database.UserAccount) map[string]any {
 
 // UserPage renders the public personal works page shell.
 func UserPage(c *gin.Context) {
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(userPageHTML))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", renderProductHTML(c, userPageHTML))
 }
 
 const userPageHTML = `<!doctype html>

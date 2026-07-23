@@ -120,7 +120,7 @@ func formatWorkCertificate(cert database.WorkCertificate) map[string]any {
 
 // CertificatePage renders the public certificate page shell.
 func CertificatePage(c *gin.Context) {
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(certificatePageHTML))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", renderProductHTML(c, certificatePageHTML))
 }
 
 const certificatePageHTML = `<!doctype html>

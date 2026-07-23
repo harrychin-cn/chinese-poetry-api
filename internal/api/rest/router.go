@@ -98,12 +98,15 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		v1.GET("/tags", tagHandler.ListTags)
 
 		knowledgeHandler := handler.NewKnowledgeHandler(repo)
+		aiSearchHandler := handler.NewAISearchHandler(repo, cfg.Qanlo)
 		v1.GET("/knowledge/scenarios", knowledgeHandler.ListScenarios)
 		if cfg.APIAuth.Enabled {
 			v1.GET("/knowledge/recall", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), knowledgeHandler.Recall)...)
+			v1.GET("/poems/search/ai", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), aiSearchHandler.Search)...)
 			v1.POST("/knowledge/batch", withAPIKey(middleware.APIKeyAuthWithRecharge(repo, cfg.Qanlo.RechargeURL), knowledgeHandler.BatchRecall)...)
 		} else {
 			v1.GET("/knowledge/recall", knowledgeHandler.Recall)
+			v1.GET("/poems/search/ai", aiSearchHandler.Search)
 			v1.POST("/knowledge/batch", knowledgeHandler.BatchRecall)
 		}
 
@@ -132,7 +135,11 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		// Client commercial entrypoint:
 		// create local API key -> bind/recharge via Qanlo -> use enhanced API.
 		apiKeyHandler := handler.NewAPIKeyHandler(repo, cfg.APIAuth)
-		v1.POST("/keys", apiKeyHandler.CreateClientAPIKey)
+		// A public starter identity is intentionally scarce. This limiter is kept
+		// independent of the optional global limiter so production cannot expose
+		// an unrestricted anonymous key-minting endpoint by configuration drift.
+		publicKeyCreateLimiter := middleware.NewRateLimiter(1.0/900.0, 1)
+		v1.POST("/keys", publicKeyCreateLimiter.Middleware(), apiKeyHandler.CreateClientAPIKey)
 		v1.GET("/keys/current", withAPIKey(middleware.APIKeyAuthNoUsage(repo), apiKeyHandler.GetCurrentAPIKey)...)
 
 		accountHandler := handler.NewAccountHandler(repo)

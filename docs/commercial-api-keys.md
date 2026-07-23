@@ -42,7 +42,7 @@ GET /api/v1/wallet/transactions
 POST /api/v1/wallet/top-up
 ```
 
-其中 `POST /api/v1/keys` 仅保留路由兼容，公开环境已禁止自助创建 API Key，会返回 403，避免未充值用户直接生成可用 Key。Key 必须由管理员接口 `POST /api/v1/admin/api-keys` 或受信任的 Qanlo 开通链路发放；返回里的完整密钥只出现一次。其余客户侧状态、充值和用量接口需要 `X-API-Key`。
+`POST /api/v1/keys` 是公开控制台的“创建 Key”入口。服务端忽略由客户传入的套餐参数，统一创建 `tier=starter`、`daily_limit=20` 的本地 `cp_live_` Key；完整密钥仅在创建时返回一次，路由由专用 IP 限速保护。之后点击“快捷充值”调用 `/api/v1/billing/qanlo/recharge-session`，跳转 Qanlo 精简充值链路并使用已有 callback。Qanlo 的 `qk_` / `sk_` 密钥仅用于生图 Key 输入框，不能代替 `cp_live_` 本地 API Key；其他客户端状态、充值和用量接口需要 `X-API-Key`。
 
 ## OpenAPI 规格
 
@@ -156,8 +156,8 @@ POST /api/v1/admin/enrichment/review-items/:id/reject
 ```bash
 curl -X POST "http://localhost:1279/api/v1/keys" \
   -H "Content-Type: application/json" \
-  -d '{"name":"demo customer","tier":"trial"}'
-# HTTP 403: public api key creation is disabled
+  -d '{"name":"demo customer"}'
+# HTTP 201: returns data.api_key once
 ```
 
 查看当前 Key：

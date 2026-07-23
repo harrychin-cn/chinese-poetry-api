@@ -8,7 +8,7 @@ import (
 
 // OpenAPIYAML returns the built-in OpenAPI 3.0 specification for API clients and docs tools.
 func OpenAPIYAML(c *gin.Context) {
-	c.Data(http.StatusOK, "application/yaml; charset=utf-8", []byte(openAPIYAML))
+	c.Data(http.StatusOK, "application/yaml; charset=utf-8", renderProductContent(c, openAPIYAML))
 }
 
 const openAPIYAML = `openapi: 3.0.3
@@ -20,6 +20,8 @@ info:
     AI knowledge recall, QanloAPI billing, usage analytics, feedback, abuse control,
     originality plagiarism review, and AI data-enrichment review operations.
 servers:
+  - url: __POETRY_DEPLOYMENT_BASE_PATH__
+    description: Current deployment base path
   - url: http://localhost:1279
     description: Local development server
   - url: https://your-domain.com
@@ -131,6 +133,12 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     Forbidden:
       description: Blocked, disabled, over quota, or not allowed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Request limit exceeded
       content:
         application/json:
           schema:
@@ -422,14 +430,18 @@ paths:
     post:
       tags:
         - Client Keys
-      summary: Public client API key creation is disabled
+      summary: Create a bounded starter client API key
       operationId: createClientAPIKey
       security: []
       requestBody:
         $ref: "#/components/requestBodies/JSONBody"
       responses:
-        "403":
-          $ref: "#/components/responses/Forbidden"
+        "201":
+          $ref: "#/components/responses/OK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /api/v1/keys/current:
     get:
       tags:
