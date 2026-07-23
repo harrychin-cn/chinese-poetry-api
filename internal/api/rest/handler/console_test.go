@@ -8,8 +8,13 @@ import (
 )
 
 func TestConsoleUsesPoetryKeyForModelSearchAndKeepsImageKeySeparate(t *testing.T) {
-	require.Contains(t, consoleHTML, `"/api/v1/poems/search/ai?q="`)
-	require.Contains(t, consoleHTML, `{"X-API-Key":key}`)
+	searchStart := strings.Index(consoleHTML, "async function searchPoems()")
+	searchEnd := strings.Index(consoleHTML, "async function generateImage()")
+	require.GreaterOrEqual(t, searchStart, 0)
+	require.Greater(t, searchEnd, searchStart)
+	search := consoleHTML[searchStart:searchEnd]
+	require.Contains(t, search, `"/api/v1/poems/search/ai?q="`)
+	require.Contains(t, search, `{"X-API-Key":key}`)
 	require.Contains(t, consoleHTML, `"X-Image-API-Key":ik`)
 	require.True(t, strings.Contains(consoleHTML, "image_api_key:ik"))
 }
