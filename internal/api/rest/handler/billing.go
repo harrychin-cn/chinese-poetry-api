@@ -20,14 +20,14 @@ type BillingHandler struct {
 	repo        *database.Repository
 	qanloCfg    config.QanloConfig
 	qanloClient *qanlo.Client
+	secretBox   *qanlo.SecretBox
 }
 
 // NewBillingHandler creates a billing handler.
 func NewBillingHandler(repo *database.Repository, qanloCfg config.QanloConfig) *BillingHandler {
+	box, _ := qanlo.NewSecretBox(qanloCfg.KeyEncryptionKey)
 	return &BillingHandler{
-		repo:        repo,
-		qanloCfg:    qanloCfg,
-		qanloClient: qanlo.NewClient(qanloCfg),
+		repo: repo, qanloCfg: qanloCfg, qanloClient: qanlo.NewClient(qanloCfg), secretBox: box,
 	}
 }
 
@@ -121,13 +121,24 @@ func (h *BillingHandler) QanloCallback(c *gin.Context) {
 		return
 	}
 
+	if h.secretBox == nil {
+		c.Data(http.StatusServiceUnavailable, "text/html; charset=utf-8", []byte(callbackHTML("Qanlo ????", "??????? QANLO_KEY_ENCRYPTION_KEY??????????? Agent Key?")))
+		return
+	}
+	ciphertext, sealErr := h.secretBox.Seal(resolvedKey)
+	if sealErr != nil {
+		c.Data(http.StatusInternalServerError, "text/html; charset=utf-8", []byte(callbackHTML("Qanlo ????", "?????? Agent Key?????")))
+		return
+	}
 	baseURL := firstQueryText(c.Query("qanlo_base_url"), c.Query("base_url"), h.qanloClient.OpenAIBaseURL())
 	binding, err := h.repo.SaveQanloCallback(database.QanloCallbackParams{
-		CallbackState: state,
-		RawQanloKey:   resolvedKey,
-		QanloBaseURL:  baseURL,
-		RawQuery:      c.Request.URL.RawQuery,
-		EventType:     firstQueryText(c.Query("intent"), "callback"),
+		CallbackState:      state,
+		QanloKeyHash:       database.HashAPIKey(resolvedKey),
+		QanloKeyPrefix:     database.MaskSecret(resolvedKey),
+		QanloKeyCiphertext: ciphertext,
+		QanloBaseURL:       baseURL,
+		RawQuery:           "",
+		EventType:          firstQueryText(c.Query("intent"), "callback"),
 	})
 	if err != nil {
 		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(callbackHTML("Qanlo 绑定失败", "回调已过期或无法匹配本地 API Key，请返回控制台重新发起绑定。")))
@@ -293,7 +304,8 @@ func (h *BillingHandler) formatQanloBinding(binding *database.QanloBinding) gin.
 	return gin.H{
 		"configured":           h.qanloClient.Configured(),
 		"status":               binding.Status,
-		"has_qanlo_key":        binding.QanloKeyHash != "",
+		"has_qanlo_key":        binding.QanloKeyCiphertext != "",
+		"requires_rebind":      binding.QanloKeyHash != "" && binding.QanloKeyCiphertext == "",
 		"qanlo_key_prefix":     binding.QanloKeyPrefix,
 		"base_url":             firstQueryText(binding.QanloBaseURL, h.qanloClient.OpenAIBaseURL()),
 		"model":                h.qanloClient.AgentModel(),

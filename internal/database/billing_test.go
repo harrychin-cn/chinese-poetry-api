@@ -34,11 +34,13 @@ func TestQanloBindingSessionAndCallback(t *testing.T) {
 	assert.Equal(t, "poetry-user-1", binding.ExternalUserID)
 
 	linked, err := repo.SaveQanloCallback(QanloCallbackParams{
-		CallbackState: "state-1",
-		RawQanloKey:   "sk-qanlo-secret",
-		QanloBaseURL:  "https://qanlo.com/v1",
-		RawQuery:      "state=state-1&key=sk-qanlo-secret",
-		EventType:     "callback",
+		CallbackState:      "state-1",
+		QanloKeyHash:       HashAPIKey("sk-qanlo-secret"),
+		QanloKeyPrefix:     MaskSecret("sk-qanlo-secret"),
+		QanloKeyCiphertext: "encrypted",
+		QanloBaseURL:       "https://qanlo.com/v1",
+		RawQuery:           "state=state-1&key=sk-qanlo-secret",
+		EventType:          "callback",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "linked", linked.Status)
@@ -70,8 +72,10 @@ func TestQanloCallbackRejectsExpiredState(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = repo.SaveQanloCallback(QanloCallbackParams{
-		CallbackState: "expired-state",
-		RawQanloKey:   "sk-qanlo-secret",
+		CallbackState:      "expired-state",
+		QanloKeyHash:       HashAPIKey("sk-qanlo-secret"),
+		QanloKeyPrefix:     MaskSecret("sk-qanlo-secret"),
+		QanloKeyCiphertext: "encrypted",
 	})
 	assert.True(t, errors.Is(err, ErrInvalidQanloState))
 }

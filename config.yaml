@@ -41,6 +41,7 @@ qanlo:
   agent_model: "deepseek-v4-flash"
   return_url: "http://localhost:1279/api/v1/billing/qanlo/callback"
   callback_secret: ""  # Optional: set QANLO_CALLBACK_SECRET to protect callback
+  key_encryption_key: ""  # Set QANLO_KEY_ENCRYPTION_KEY (base64 32 bytes) before enabling model calls
 
 image:
   # Image generation gateway defaults. Users provide their own Qanlo image key in the console page.

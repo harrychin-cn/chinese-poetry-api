@@ -264,6 +264,7 @@ func (db *DB) migrateBillingTables() error {
 		external_user_id TEXT NOT NULL,
 		external_device_id TEXT NOT NULL,
 		qanlo_key_hash TEXT,
+		qanlo_key_ciphertext TEXT,
 		qanlo_key_prefix TEXT,
 		qanlo_base_url TEXT,
 		callback_state TEXT UNIQUE,
@@ -274,6 +275,17 @@ func (db *DB) migrateBillingTables() error {
 		FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
 	)`).Error; err != nil {
 		return err
+	}
+
+	// Upgrade installs created before encrypted Agent Key storage.
+	var qanloCiphertextColumnCount int
+	if err := db.Raw(`SELECT COUNT(*) FROM pragma_table_info('api_key_qanlo_bindings') WHERE name = 'qanlo_key_ciphertext'`).Scan(&qanloCiphertextColumnCount).Error; err != nil {
+		return err
+	}
+	if qanloCiphertextColumnCount == 0 {
+		if err := db.Exec(`ALTER TABLE api_key_qanlo_bindings ADD COLUMN qanlo_key_ciphertext TEXT`).Error; err != nil {
+			return err
+		}
 	}
 
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS qanlo_callback_events (
