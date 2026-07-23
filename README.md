@@ -146,7 +146,7 @@ curl "http://localhost:1279/api/v1/dynasties"
 - [SQLite 备份策略](docs/backup-strategy.md)
 - [生产运营与恢复演练 Runbook](docs/operations-runbook.md)
 
-商业化闭环已收敛为 QanloAPI 精简链路：公开 `POST /api/v1/keys` 仅保留兼容路由，默认返回 403，不允许未充值用户自助生成可用 Key；本项目 API Key 必须由管理员 `POST /api/v1/admin/api-keys` 或受信任的 Qanlo 开通链路发放。客户拿到 Key 后，可调用 `/api/v1/billing/qanlo/provision` 或 `/api/v1/billing/qanlo/recharge-session` 跳转 Qanlo 绑定/充值，回调 `/api/v1/billing/qanlo/callback` 后通过 `/api/v1/billing/status` 查看状态。首版价格/套餐只作为 `tier` 与 `daily_limit` 的运营标记，充值与扣费走 QanloAPI 按调用收费，不在本项目内自建支付/订单系统。运营统计已补 `GET /api/v1/usage/daily`、`GET /api/v1/usage/endpoints`、`GET /api/v1/usage/queries` 和管理员 usage 聚合；客户可通过 `POST /api/v1/feedback` 提交反馈，管理员可通过 `PATCH /api/v1/admin/api-keys/:id` 做启停、每日限额和备注调整，并可通过 `/api/v1/admin/abuse/blocks` 封禁/解封异常 IP 或 API Key。
+商业化闭环统一为 QanloAPI 精简链路：控制台先通过 `POST /api/v1/keys` 创建本地 `cp_live_` Key（含每日 20 次初始额度），再点击“快捷充值”调用 `/api/v1/billing/qanlo/recharge-session` 跳转 Qanlo 精简充值流程并使用已有回调链路。Qanlo 的 `qk_` / `sk_` 密钥只填在生图 Key 输入框。
 
 AI 数据增强试跑建议先走一键脚本：
 

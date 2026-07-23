@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,10 @@ type APIKeyHandler struct {
 	repo              *database.Repository
 	defaultDailyLimit int
 }
+
+// publicInitialDailyLimit keeps anonymous console key creation useful while ensuring
+// that a newly issued local key cannot become an unbounded public API grant.
+const publicInitialDailyLimit = 20
 
 // NewAPIKeyHandler creates a new API key admin handler.
 func NewAPIKeyHandler(repo *database.Repository, authCfg config.APIAuthConfig) *APIKeyHandler {
@@ -42,11 +47,42 @@ type updateAPIKeyRequest struct {
 	Notes      *string `json:"notes"`
 }
 
-// CreateClientAPIKey intentionally does not create keys from the public console.
-// API keys must be issued by the admin route or a trusted provisioning flow,
-// otherwise an anonymous visitor could mint a usable key without recharge.
+// CreateClientAPIKey creates a small, local-only starter key for the public console.
+// Qanlo credentials remain separate and are bound after this local identity exists.
+// The global IP rate limiter still applies before this handler.
 func (h *APIKeyHandler) CreateClientAPIKey(c *gin.Context) {
-	respondError(c, http.StatusForbidden, "public api key creation is disabled; open or recharge a key from Qanlo, or ask an admin to issue one")
+	var req createAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "invalid json body")
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = "poetry console"
+	}
+	key, rawKey, err := h.repo.CreateAPIKey(database.CreateAPIKeyParams{
+		Name:       name,
+		Tier:       "starter",
+		DailyLimit: publicInitialDailyLimit,
+		Notes:      "public poetry console",
+	})
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "failed to create api key")
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"data": gin.H{
+			"id":          key.ID,
+			"tier":        key.Tier,
+			"daily_limit": key.DailyLimit,
+			"enabled":     key.Enabled,
+			"key_prefix":  key.KeyPrefix,
+			"api_key":     rawKey,
+			"notice":      "store this api_key now; it will not be shown again",
+		},
+	})
 }
 
 // GetCurrentAPIKey returns the current API key profile without incrementing usage.

@@ -132,7 +132,11 @@ func SetupRouter(cfg *config.Config, db *database.DB, repo *database.Repository)
 		// Client commercial entrypoint:
 		// create local API key -> bind/recharge via Qanlo -> use enhanced API.
 		apiKeyHandler := handler.NewAPIKeyHandler(repo, cfg.APIAuth)
-		v1.POST("/keys", apiKeyHandler.CreateClientAPIKey)
+		// A public starter identity is intentionally scarce. This limiter is kept
+		// independent of the optional global limiter so production cannot expose
+		// an unrestricted anonymous key-minting endpoint by configuration drift.
+		publicKeyCreateLimiter := middleware.NewRateLimiter(1.0/900.0, 1)
+		v1.POST("/keys", publicKeyCreateLimiter.Middleware(), apiKeyHandler.CreateClientAPIKey)
 		v1.GET("/keys/current", withAPIKey(middleware.APIKeyAuthNoUsage(repo), apiKeyHandler.GetCurrentAPIKey)...)
 
 		accountHandler := handler.NewAccountHandler(repo)
